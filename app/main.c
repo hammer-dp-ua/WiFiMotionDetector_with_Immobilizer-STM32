@@ -1,3 +1,4 @@
+// STM32F030C6T6
 /**
  * unsigned char  uint8_t
  * unsigned short uint16_t
@@ -74,19 +75,19 @@
 #define TIMER3_PERIOD_MS 0.13f
 #define TIMER3_PERIOD_SEC (TIMER3_PERIOD_MS / 1000)
 #define TIMER3_100MS (unsigned short)(100 / TIMER3_PERIOD_MS)
-#define TIMER6_100MS 1
-#define TIMER6_200MS 2
-#define TIMER6_500MS 5
-#define TIMER6_1S 10
-#define TIMER6_2S 20
-#define TIMER6_3S 30
-#define TIMER6_5S 50
-#define TIMER6_10S 100
-#define TIMER6_30S 300
-#define TIMER6_60S 600
-#define TIMER6_2MIN 1200
-#define TIMER6_3MIN 1800
-#define TIMER6_10MIN 6000
+#define TIMER14_100MS 1
+#define TIMER14_200MS 2
+#define TIMER14_500MS 5
+#define TIMER14_1S 10
+#define TIMER14_2S 20
+#define TIMER14_3S 30
+#define TIMER14_5S 50
+#define TIMER14_10S 100
+#define TIMER14_30S 300
+#define TIMER14_60S 600
+#define TIMER14_2MIN 1200
+#define TIMER14_3MIN 1800
+#define TIMER14_10MIN 6000
 
 #define EXECUTE_FUNCTION 1
 #define DO_NOT_EXECUTE_FUNCTION 0
@@ -167,9 +168,9 @@ volatile unsigned int last_error_task_g;
 volatile unsigned short network_searching_status_led_counter_g;
 volatile unsigned short response_timeout_timer_g;
 volatile unsigned char esp8266_disabled_counter_g;
-volatile unsigned char esp8266_disabled_timer_g = TIMER6_5S;
+volatile unsigned char esp8266_disabled_timer_g = TIMER14_5S;
 unsigned short checking_connection_status_and_server_availability_timer_g;
-volatile unsigned short visible_network_list_timer_g = TIMER6_10MIN;
+volatile unsigned short visible_network_list_timer_g = TIMER14_10MIN;
 volatile unsigned short beeper_inactive_timer_g;
 volatile unsigned char beeper_period_timer_g;
 volatile unsigned char beeper_alarm_prior_to_response_period_timer_g;
@@ -185,7 +186,7 @@ void IWDG_Config();
 void Clock_Config();
 void Pins_Config();
 void TIMER3_Confing();
-void TIMER6_Confing();
+void TIMER14_Confing();
 void EXTERNAL_Interrupt_Config();
 void reset_device_state();
 void beep_and_schedule_alarm(unsigned char *beeper_counter);
@@ -262,11 +263,8 @@ void DMA1_Channel2_3_IRQHandler() {
    DMA_ClearITPendingBit(DMA1_IT_TC2);
 }
 
-/**
- * TIM6 and DAC
- */
-void TIM6_DAC_IRQHandler() {
-   TIM_ClearITPendingBit(TIM6, TIM_IT_Update);
+void TIM14_IRQHandler() {
+   TIM_ClearITPendingBit(TIM14, TIM_IT_Update);
 
    response_timeout_timer_g++;
    if (visible_network_list_timer_g) {
@@ -322,7 +320,7 @@ void EXTI0_1_IRQHandler() {
             //GPIO_WriteBit(MOTION_SENSOR_LED_PORT, MOTION_SENSOR_LED_PIN, Bit_RESET);
          }
       }
-      inactive_alarm_trigger_timer_g = TIMER6_3S;
+      inactive_alarm_trigger_timer_g = TIMER14_3S;
    }
 }
 
@@ -365,7 +363,7 @@ int main() {
    DMA_Config();
    USART_Config();
    TIMER3_Confing();
-   TIMER6_Confing();
+   TIMER14_Confing();
    EXTERNAL_Interrupt_Config();
 
    add_piped_task_to_send_into_tail(DISABLE_ECHO_FLAG);
@@ -494,7 +492,7 @@ int main() {
                   }
 
                   // Reset counter to send the next request in the time interval starting from the received time
-                  checking_connection_status_and_server_availability_timer_g = TIMER6_30S;
+                  checking_connection_status_and_server_availability_timer_g = TIMER14_30S;
                   set_flag(&general_flags_g, SERVER_IS_AVAILABLE_FLAG);
                } else {
                   reset_flag(&general_flags_g, SERVER_IS_AVAILABLE_FLAG);
@@ -520,7 +518,7 @@ int main() {
          check_connection_status_and_server_availability(&checking_connection_status_and_server_availability_timer_g);
 
          if (!visible_network_list_timer_g) {
-            visible_network_list_timer_g = TIMER6_10MIN;
+            visible_network_list_timer_g = TIMER14_10MIN;
             add_piped_task_to_send_into_tail(GET_VISIBLE_NETWORK_LIST_FLAG);
          }
 
@@ -555,7 +553,7 @@ int main() {
          }
 
          beep_and_schedule_alarm(&beeper_counter);
-      } else if (esp8266_disabled_counter_g >= TIMER6_1S) {
+      } else if (esp8266_disabled_counter_g >= TIMER14_1S) {
          esp8266_disabled_counter_g = 0;
          enable_esp8266();
       }
@@ -597,7 +595,7 @@ void beep_and_schedule_alarm(unsigned char *beeper_counter) {
    if (read_flag(&general_flags_g, ALARM_FLAG)) {
 
       if (!beeper_inactive_timer_g) {
-         beeper_inactive_timer_g = TIMER6_60S;
+         beeper_inactive_timer_g = TIMER14_60S;
          *beeper_counter = 1;
          set_flag(&general_flags_g, BEEPER_SIGNAL_ALARM_FLAG);
          reset_flag(&general_flags_g, FREEZE_BEEPER_SERVER_ALARM_RECEIVED_FLAG);
@@ -609,7 +607,7 @@ void beep_and_schedule_alarm(unsigned char *beeper_counter) {
       }
    }
    if (read_flag(&general_flags_g, BEEPER_SIGNAL_ALARM_FLAG) && *beeper_counter && !beeper_period_timer_g) {
-      beeper_period_timer_g = TIMER6_200MS;
+      beeper_period_timer_g = TIMER14_200MS;
 
       switch (*beeper_counter) {
          case 1:
@@ -636,7 +634,7 @@ void beep_and_schedule_alarm(unsigned char *beeper_counter) {
             turn_beeper_off();
             *beeper_counter = 0;
             beeper_period_timer_g = 0;
-            beeper_alarm_prior_to_response_period_timer_g = TIMER6_500MS;
+            beeper_alarm_prior_to_response_period_timer_g = TIMER14_500MS;
             reset_flag(&general_flags_g, BEEPER_SIGNAL_ALARM_FLAG);
             break;
       }
@@ -652,7 +650,7 @@ void beep_and_schedule_alarm(unsigned char *beeper_counter) {
    }
    if (read_flag(&general_flags_g, BEEPER_SERVER_ALARM_RECEIVED_FLAG) &&
          !beeper_alarm_prior_to_response_period_timer_g && *beeper_counter && !beeper_period_timer_g) {
-      beeper_period_timer_g = TIMER6_200MS;
+      beeper_period_timer_g = TIMER14_200MS;
 
       switch (*beeper_counter) {
          case 1:
@@ -680,7 +678,7 @@ void beep_and_schedule_alarm(unsigned char *beeper_counter) {
 
 void check_connection_status_and_server_availability(unsigned short *counter) {
    if (*counter == 0 && is_piped_tasks_scheduler_empty()) {
-      *counter = TIMER6_30S;
+      *counter = TIMER14_30S;
       add_piped_task_to_send_into_tail(GET_CONNECTION_STATUS_FLAG);
       add_piped_task_to_send_into_tail(GET_SERVER_AVAILABILITY_FLAG);
    }
@@ -1383,22 +1381,22 @@ void TIMER3_Confing() {
 /**
  * 0.1s with 16MHz clock
  */
-void TIMER6_Confing() {
-   DBGMCU_APB1PeriphConfig(DBGMCU_TIM6_STOP, ENABLE);
-   RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM6, ENABLE);
+void TIMER14_Confing() {
+   DBGMCU_APB1PeriphConfig(DBGMCU_TIM14_STOP, ENABLE);
+   RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM14, ENABLE);
 
    TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
    TIM_TimeBaseStructure.TIM_Period = 24;
    TIM_TimeBaseStructure.TIM_Prescaler = 0xFFFF;
    TIM_TimeBaseStructure.TIM_ClockDivision = TIM_CKD_DIV1;
    TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up;
-   TIM_TimeBaseInit(TIM6, &TIM_TimeBaseStructure);
+   TIM_TimeBaseInit(TIM14, &TIM_TimeBaseStructure);
 
-   TIM_ClearITPendingBit(TIM6, TIM_IT_Update);
-   NVIC_EnableIRQ(TIM6_IRQn);
-   TIM_ITConfig(TIM6, TIM_IT_Update, ENABLE);
+   TIM_ClearITPendingBit(TIM14, TIM_IT_Update);
+   NVIC_EnableIRQ(TIM14_IRQn);
+   TIM_ITConfig(TIM14, TIM_IT_Update, ENABLE);
 
-   TIM_Cmd(TIM6, ENABLE);
+   TIM_Cmd(TIM14, ENABLE);
 }
 
 void DMA_Config() {
@@ -1717,7 +1715,7 @@ unsigned char is_received_data_length_equal(unsigned short length) {
 
 void enable_esp8266() {
    GPIO_WriteBit(ESP8266_CONTROL_PORT, ESP8266_CONTROL_PIN, Bit_RESET);
-   esp8266_disabled_timer_g = TIMER6_5S;
+   esp8266_disabled_timer_g = TIMER14_5S;
 }
 
 void disable_esp8266() {
