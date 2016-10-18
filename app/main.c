@@ -29,6 +29,10 @@
 #define ESP8266_CONTROL_PORT GPIOA
 #define BEEPER_PIN GPIO_Pin_7
 #define BEEPER_PORT GPIOA
+#define IMMOBILIZER_RELAY_PORT GPIOA
+#define IMMOBILIZER_RELAY_PIN GPIO_Pin_6
+#define IMMOBILIZER_ENABLE_PORT GPIOB
+#define IMMOBILIZER_ENABLE_PIN GPIO_Pin_7
 
 // General flags
 #define USART_DATA_RECEIVED_FLAG 1
@@ -74,6 +78,7 @@
 
 #define TIMER3_PERIOD_MS 0.13f
 #define TIMER3_PERIOD_SEC (TIMER3_PERIOD_MS / 1000)
+#define TIMER3_10MS (unsigned short)(10 / TIMER3_PERIOD_MS)
 #define TIMER3_100MS (unsigned short)(100 / TIMER3_PERIOD_MS)
 #define TIMER14_100MS 1
 #define TIMER14_200MS 2
@@ -322,6 +327,10 @@ void EXTI0_1_IRQHandler() {
       }
       inactive_alarm_trigger_timer_g = TIMER14_3S;
    }
+}
+
+void EXTI4_15_IRQHandler() {
+
 }
 
 void USART1_IRQHandler() {
@@ -1346,13 +1355,17 @@ void Pins_Config() {
    gpioInitType.GPIO_Pin = BEEPER_PIN;
    GPIO_Init(BEEPER_PORT, &gpioInitType);
 
+   // Immobilizer enable pin
+   gpioInitType.GPIO_Pin = IMMOBILIZER_ENABLE_PIN;
+   GPIO_Init(IMMOBILIZER_ENABLE_PORT, &gpioInitType);
+
    // MOTION SENSOR LED
    //gpioInitType.GPIO_Pin = MOTION_SENSOR_LED_PIN;
    //GPIO_Init(MOTION_SENSOR_LED_PORT, &gpioInitType);
 
    // ESP8266 enable/disable
    gpioInitType.GPIO_Pin = ESP8266_CONTROL_PIN;
-   gpioInitType.GPIO_PuPd = GPIO_PuPd_UP;
+   gpioInitType.GPIO_PuPd = GPIO_PuPd_NOPULL;
    GPIO_Init(ESP8266_CONTROL_PORT, &gpioInitType);
 }
 
@@ -1714,17 +1727,17 @@ unsigned char is_received_data_length_equal(unsigned short length) {
 }
 
 void enable_esp8266() {
-   GPIO_WriteBit(ESP8266_CONTROL_PORT, ESP8266_CONTROL_PIN, Bit_RESET);
+   GPIO_WriteBit(ESP8266_CONTROL_PORT, ESP8266_CONTROL_PIN, Bit_SET);
    esp8266_disabled_timer_g = TIMER14_5S;
 }
 
 void disable_esp8266() {
-   GPIO_WriteBit(ESP8266_CONTROL_PORT, ESP8266_CONTROL_PIN, Bit_SET);
+   GPIO_WriteBit(ESP8266_CONTROL_PORT, ESP8266_CONTROL_PIN, Bit_RESET);
    GPIO_WriteBit(NETWORK_STATUS_LED_PORT, NETWORK_STATUS_LED_PIN, Bit_RESET);
    GPIO_WriteBit(SERVER_AVAILABILITI_LED_PORT, SERVER_AVAILABILITI_LED_PIN, Bit_RESET);
 }
 
 unsigned char is_esp8266_enabled(unsigned char include_timer) {
-   return include_timer ? (!GPIO_ReadOutputDataBit(ESP8266_CONTROL_PORT, ESP8266_CONTROL_PIN) && esp8266_disabled_timer_g == 0) :
-         !GPIO_ReadOutputDataBit(ESP8266_CONTROL_PORT, ESP8266_CONTROL_PIN);
+   return include_timer ? (GPIO_ReadOutputDataBit(ESP8266_CONTROL_PORT, ESP8266_CONTROL_PIN) && esp8266_disabled_timer_g == 0) :
+         GPIO_ReadOutputDataBit(ESP8266_CONTROL_PORT, ESP8266_CONTROL_PIN);
 }
