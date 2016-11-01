@@ -1,4 +1,4 @@
-// STM32F030C6T6
+// STM32F030K6T6
 /**
  * unsigned char  uint8_t
  * unsigned short uint16_t
@@ -7,6 +7,7 @@
 #include "stm32f0xx.h"
 #include "arm_math.h"
 #include "stdlib.h"
+#include "device_settings.h"
 
 #define CLOCK_SPEED 16000000
 #define USART_BAUD_RATE 115200
@@ -31,6 +32,10 @@
 #define BEEPER_PORT GPIOA
 #define IMMOBILIZER_RELAY_PORT GPIOA
 #define IMMOBILIZER_RELAY_PIN GPIO_Pin_6
+#define IMMOBILIZER_RELAY_EXTI_PIN_SOURCE EXTI_PinSource6
+#define IMMOBILIZER_RELAY_EXTI_PORT_SOURCE EXTI_PortSourceGPIOA
+#define IMMOBILIZER_RELAY_EXTI_LINE EXTI_Line6
+#define IMMOBILIZER_RELAY_NVIC_IRQChannel EXTI4_15_IRQn
 #define IMMOBILIZER_ENABLE_PORT GPIOB
 #define IMMOBILIZER_ENABLE_PIN GPIO_Pin_7
 
@@ -44,6 +49,7 @@
 #define BEEPER_SERVER_ALARM_RECEIVED_FLAG 64
 #define FREEZE_BEEPER_SERVER_ALARM_RECEIVED_FLAG 128
 #define SEND_DEBUG_INFO_FLAG 256
+#define IMMOBILIZER_RELAY_FLAG 512
 
 #define GET_VISIBLE_NETWORK_LIST_FLAG 1
 #define DISABLE_ECHO_FLAG 2
@@ -108,8 +114,6 @@ unsigned int general_flags_g;
 
 char USART_OK[] __attribute__ ((section(".text.const"))) = "OK";
 char USART_ERROR[] __attribute__ ((section(".text.const"))) = "ERROR";
-char DEFAULT_ACCESS_POINT_NAME[] __attribute__ ((section(".text.const"))) = "Asus";
-char DEFAULT_ACCESS_POINT_PASSWORD[] __attribute__ ((section(".text.const"))) = "";
 char ESP8226_REQUEST_DISABLE_ECHO[] __attribute__ ((section(".text.const"))) = "ATE0\r\n";
 char ESP8226_RESPONSE_BUSY[] __attribute__ ((section(".text.const"))) = "busy";
 char ESP8226_REQUEST_GET_VISIBLE_NETWORK_LIST[] __attribute__ ((section(".text.const"))) = "AT+CWLAP\r\n";
@@ -129,9 +133,6 @@ char ESP8226_RESPONSE_SENDING[] __attribute__ ((section(".text.const"))) = "busy
 char ESP8226_RESPONSE_SUCCSESSFULLY_SENT[] __attribute__ ((section(".text.const"))) = "\r\nSEND OK\r\n";
 char ESP8226_RESPONSE_ALREADY_CONNECTED[] __attribute__ ((section(".text.const"))) = "ALREADY CONNECTED";
 char ESP8226_RESPONSE_PREFIX[] __attribute__ ((section(".text.const"))) = "+IPD";
-char ESP8226_OWN_IP_ADDRESS[] __attribute__ ((section(".text.const"))) = "192.168.0.20";
-char ESP8226_SERVER_IP_ADDRESS[] __attribute__ ((section(".text.const"))) = "192.168.0.2";
-char ESP8226_SERVER_PORT[] __attribute__ ((section(".text.const"))) = "80";
 char ESP8226_REQUEST_GET_CURRENT_DEFAULT_WIFI_MODE[] __attribute__ ((section(".text.const"))) = "AT+CWMODE_DEF?\r\n";
 char ESP8226_RESPONSE_WIFI_MODE_PREFIX[] __attribute__ ((section(".text.const"))) = "+CWMODE_DEF:";
 char ESP8226_RESPONSE_WIFI_STATION_MODE[] __attribute__ ((section(".text.const"))) = "1";
@@ -143,8 +144,7 @@ char ESP8226_REQUEST_SEND_STATUS_INFO_AND_GET_SERVER_AVAILABILITY[] __attribute_
       "POST /server/esp8266/statusInfo HTTP/1.1\r\nContent-Length: <1>\r\nHost: <2>\r\nUser-Agent: ESP8266\r\nContent-Type: application/json\r\nAccept: application/json\r\nConnection: keep-alive\r\n\r\n<3>\r\n";
 char DEBUG_STATUS_JSON[] __attribute__ ((section(".text.const"))) =
       "{\"gain\":\"<1>\",\"debugInfoIncluded\":<2>,\"errors\":\"<3>\",\"usartOverrunErrors\":\"<4>\",\"usartIdleLineDetections\":\"<5>\",\"usartNoiseDetection\":\"<6>\",\"usartFramingErrors\":\"<7>\",\"lastErrorTask\":\"<8>\",\"usartData\":\"<9>\"}";
-char STATUS_JSON[] __attribute__ ((section(".text.const"))) =
-      "{\"gain\":\"<1>\",\"debugInfoIncluded\":<2>}";
+char STATUS_JSON[] __attribute__ ((section(".text.const"))) = "{\"gain\":\"<1>\",\"debugInfoIncluded\":<2>}";
 char ESP8226_RESPONSE_OK_STATUS_CODE[] __attribute__ ((section(".text.const"))) = "\"statusCode\":\"OK\"";
 char ESP8226_REQUEST_SEND_ALARM[] __attribute__ ((section(".text.const"))) =
       "GET /server/esp8266/alarm HTTP/1.1\r\nHost: <1>\r\nUser-Agent: ESP8266\r\nAccept: application/json\r\nConnection: keep-alive\r\n\r\n";
@@ -177,6 +177,7 @@ volatile unsigned char esp8266_disabled_timer_g = TIMER14_5S;
 unsigned short checking_connection_status_and_server_availability_timer_g;
 volatile unsigned short visible_network_list_timer_g = TIMER14_10MIN;
 volatile unsigned short beeper_inactive_timer_g;
+volatile unsigned short immobilizer_relay_anti_jitter_timer_g;
 volatile unsigned char beeper_period_timer_g;
 volatile unsigned char beeper_alarm_prior_to_response_period_timer_g;
 volatile unsigned char inactive_alarm_trigger_timer_g;
@@ -236,6 +237,8 @@ void get_current_default_wifi_mode();
 void set_default_wifi_mode();
 void enable_esp8266();
 void disable_esp8266();
+void disable_immobilizer();
+void enable_immobilizer();
 unsigned char is_esp8266_enabled(unsigned char include_timer);
 void clear_piped_request_commands_to_send();
 void delete_all_piped_tasks();
@@ -255,6 +258,9 @@ void add_piped_task_into_history(unsigned int task);
 unsigned int get_last_piped_task_in_history();
 void *get_received_usart_error_data();
 void save_default_access_point_gain();
+void start_immobilizer_relay_anti_jitter_timer();
+unsigned char is_immobilizer_relay_status_ready_to_be_read();
+void reset_immobilizer_relay_status();
 
 void SysTick_Handler() {
    if (GPIO_ReadOutputDataBit(BEEPER_PORT, BEEPER_PIN)) {
@@ -309,6 +315,9 @@ void TIM3_IRQHandler() {
    if (send_usart_data_function_g != NULL) {
       send_usart_data_time_counter_g++;
    }
+   if (immobilizer_relay_anti_jitter_timer_g > 0) {
+      immobilizer_relay_anti_jitter_timer_g--;
+   }
    network_searching_status_led_counter_g++;
 }
 
@@ -330,7 +339,10 @@ void EXTI0_1_IRQHandler() {
 }
 
 void EXTI4_15_IRQHandler() {
-
+   if (EXTI_GetITStatus(IMMOBILIZER_RELAY_EXTI_LINE)) {
+      EXTI_ClearITPendingBit(IMMOBILIZER_RELAY_EXTI_LINE);
+      start_immobilizer_relay_anti_jitter_timer();
+   }
 }
 
 void USART1_IRQHandler() {
@@ -368,7 +380,9 @@ int main() {
    IWDG_Config();
    Clock_Config();
    Pins_Config();
+   GPIO_WriteBit(NETWORK_STATUS_LED_PORT, NETWORK_STATUS_LED_PIN, Bit_SET);
    disable_esp8266();
+   disable_immobilizer();
    DMA_Config();
    USART_Config();
    TIMER3_Confing();
@@ -381,6 +395,16 @@ int main() {
    add_piped_task_to_send_into_tail(GET_VISIBLE_NETWORK_LIST_FLAG);
    add_piped_task_to_send_into_tail(GET_CONNECTION_STATUS_AND_CONNECT_FLAG);
    add_piped_task_to_send_into_tail(GET_SERVER_AVAILABILITY_FLAG);
+
+   /*int a = -1;
+   a = abs(a);
+   if (a == 1) {
+      beeper_inactive_timer_g++;
+   }
+   char *b = malloc(10);
+   if (*b != 'a') {
+      beeper_inactive_timer_g++;
+   }*/
 
    unsigned char beeper_counter = 0;
 
@@ -442,7 +466,7 @@ int main() {
             if (read_flag(&successfully_received_flags_g, GET_VISIBLE_NETWORK_LIST_FLAG)) {
                on_successfully_receive_general_actions(GET_VISIBLE_NETWORK_LIST_FLAG);
 
-               save_default_access_point_gain();
+               //save_default_access_point_gain();
             }
             if (read_flag(&successfully_received_flags_g, CONNECT_TO_NETWORK_FLAG)) {
                on_successfully_receive_general_actions(CONNECT_TO_NETWORK_FLAG);
@@ -547,11 +571,11 @@ int main() {
          } else {
             reset_flag(&general_flags_g, SERVER_IS_AVAILABLE_FLAG);
          }
-         if (read_flag(&general_flags_g, SERVER_IS_AVAILABLE_FLAG)) {
+         /*if (read_flag(&general_flags_g, SERVER_IS_AVAILABLE_FLAG)) {
             GPIO_WriteBit(SERVER_AVAILABILITI_LED_PORT, SERVER_AVAILABILITI_LED_PIN, Bit_SET);
          } else {
             GPIO_WriteBit(SERVER_AVAILABILITI_LED_PORT, SERVER_AVAILABILITI_LED_PIN, Bit_RESET);
-         }
+         }*/
 
          if ((send_usart_data_errors_counter_g >= 5 || is_piped_tasks_scheduler_full()) &&
                read_flag(&general_flags_g, SERVER_IS_AVAILABLE_FLAG)) {
@@ -561,10 +585,21 @@ int main() {
             NVIC_SystemReset();
          }
 
+         if (is_immobilizer_relay_status_ready_to_be_read()) {
+            if (GPIO_ReadInputDataBit(IMMOBILIZER_RELAY_PORT, IMMOBILIZER_RELAY_PIN)) {
+               GPIO_WriteBit(SERVER_AVAILABILITI_LED_PORT, SERVER_AVAILABILITI_LED_PIN, Bit_SET);
+
+            } else {
+               GPIO_WriteBit(SERVER_AVAILABILITI_LED_PORT, SERVER_AVAILABILITI_LED_PIN, Bit_RESET);
+            }
+            reset_immobilizer_relay_status();
+         }
+
          beep_and_schedule_alarm(&beeper_counter);
       } else if (esp8266_disabled_counter_g >= TIMER14_1S) {
          esp8266_disabled_counter_g = 0;
          enable_esp8266();
+         enable_immobilizer();
       }
 
       IWDG_ReloadCounter();
@@ -1309,19 +1344,23 @@ void Clock_Config() {
 }
 
 void Pins_Config() {
-   // Connect BOOT0 to ground, RESET to VDD
+   // Connect BOOT0 directly to ground, RESET to VDD
 
    RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA | RCC_AHBPeriph_GPIOB, ENABLE);
 
    GPIO_InitTypeDef gpioInitType;
-   gpioInitType.GPIO_Pin = 0x8961; // PA13, PA14 - Debugger pins
+   gpioInitType.GPIO_Pin = GPIO_Pin_All & ~(GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_9 | GPIO_Pin_10); // PA13, PA14 - Debugger pins
    gpioInitType.GPIO_Mode = GPIO_Mode_IN;
    gpioInitType.GPIO_Speed = GPIO_Speed_Level_2; // 10 MHz
    gpioInitType.GPIO_PuPd = GPIO_PuPd_UP;
    GPIO_Init(GPIOA, &gpioInitType);
 
+   gpioInitType.GPIO_Pin = IMMOBILIZER_RELAY_PIN;
+   gpioInitType.GPIO_PuPd = GPIO_PuPd_NOPULL;
+   GPIO_Init(IMMOBILIZER_RELAY_PORT, &gpioInitType);
+
    // For USART1
-   gpioInitType.GPIO_Pin = (1<<GPIO_PinSource9) | (1<<GPIO_PinSource10);
+   gpioInitType.GPIO_Pin = GPIO_Pin_9 | GPIO_Pin_10;
    gpioInitType.GPIO_PuPd = GPIO_PuPd_NOPULL;
    gpioInitType.GPIO_Mode = GPIO_Mode_AF;
    gpioInitType.GPIO_OType = GPIO_OType_OD;
@@ -1465,18 +1504,19 @@ void USART_Config() {
 void EXTERNAL_Interrupt_Config() {
    RCC_APB2PeriphClockCmd(RCC_APB2Periph_SYSCFG, ENABLE);
    SYSCFG_EXTILineConfig(MOTION_SENSOR_EXTI_PORT_SOURCE, MOTION_SENSOR_EXTI_PIN_SOURCE);
+   SYSCFG_EXTILineConfig(IMMOBILIZER_RELAY_EXTI_PORT_SOURCE, IMMOBILIZER_RELAY_EXTI_PIN_SOURCE);
 
    EXTI_InitTypeDef EXTI_InitStructure;
-   EXTI_InitStructure.EXTI_Line = MOTION_SENSOR_EXTI_LINE;
    EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Interrupt;
    EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Rising_Falling;
    EXTI_InitStructure.EXTI_LineCmd = ENABLE;
+   EXTI_InitStructure.EXTI_Line = MOTION_SENSOR_EXTI_LINE | IMMOBILIZER_RELAY_EXTI_LINE;
    EXTI_Init(&EXTI_InitStructure);
 
    NVIC_InitTypeDef NVIC_InitTypeInitStructure;
-   NVIC_InitTypeInitStructure.NVIC_IRQChannel = MOTION_SENSOR_NVIC_IRQChannel;
    NVIC_InitTypeInitStructure.NVIC_IRQChannelPriority = 3;
    NVIC_InitTypeInitStructure.NVIC_IRQChannelCmd = ENABLE;
+   NVIC_InitTypeInitStructure.NVIC_IRQChannel = MOTION_SENSOR_NVIC_IRQChannel | IMMOBILIZER_RELAY_NVIC_IRQChannel;
    NVIC_Init(&NVIC_InitTypeInitStructure);
 }
 
@@ -1737,7 +1777,28 @@ void disable_esp8266() {
    GPIO_WriteBit(SERVER_AVAILABILITI_LED_PORT, SERVER_AVAILABILITI_LED_PIN, Bit_RESET);
 }
 
+void disable_immobilizer() {
+   GPIO_WriteBit(IMMOBILIZER_ENABLE_PORT, IMMOBILIZER_ENABLE_PIN, Bit_RESET);
+}
+
+void enable_immobilizer() {
+   GPIO_WriteBit(IMMOBILIZER_ENABLE_PORT, IMMOBILIZER_ENABLE_PIN, Bit_SET);
+}
+
 unsigned char is_esp8266_enabled(unsigned char include_timer) {
    return include_timer ? (GPIO_ReadOutputDataBit(ESP8266_CONTROL_PORT, ESP8266_CONTROL_PIN) && esp8266_disabled_timer_g == 0) :
          GPIO_ReadOutputDataBit(ESP8266_CONTROL_PORT, ESP8266_CONTROL_PIN);
+}
+
+void start_immobilizer_relay_anti_jitter_timer() {
+   immobilizer_relay_anti_jitter_timer_g = TIMER3_100MS;
+   set_flag(&general_flags_g, IMMOBILIZER_RELAY_FLAG);
+}
+
+unsigned char is_immobilizer_relay_status_ready_to_be_read() {
+   return read_flag(&general_flags_g, IMMOBILIZER_RELAY_FLAG) && !immobilizer_relay_anti_jitter_timer_g;
+}
+
+void reset_immobilizer_relay_status() {
+   reset_flag(&general_flags_g, IMMOBILIZER_RELAY_FLAG);
 }
