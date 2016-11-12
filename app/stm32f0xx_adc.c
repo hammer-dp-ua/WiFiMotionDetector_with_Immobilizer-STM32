@@ -153,11 +153,11 @@
   *         the configuration information for the specified ADC peripheral.
   * @retval None
   */
-void ADC_Init(ADC_TypeDef* ADCx, ADC_InitTypeDef* ADC_InitStruct)
+/*void ADC_Init(ADC_TypeDef* ADCx, ADC_InitTypeDef* ADC_InitStruct)
 {
   uint32_t tmpreg = 0;
 
-  /* Check the parameters */
+  // Check the parameters 
   assert_param(IS_ADC_ALL_PERIPH(ADCx));
   assert_param(IS_ADC_RESOLUTION(ADC_InitStruct->ADC_Resolution));
   assert_param(IS_FUNCTIONAL_STATE(ADC_InitStruct->ADC_ContinuousConvMode));
@@ -166,28 +166,28 @@ void ADC_Init(ADC_TypeDef* ADCx, ADC_InitTypeDef* ADC_InitStruct)
   assert_param(IS_ADC_DATA_ALIGN(ADC_InitStruct->ADC_DataAlign));
   assert_param(IS_ADC_SCAN_DIRECTION(ADC_InitStruct->ADC_ScanDirection)); 
 
-  /* Get the ADCx CFGR value */
+  // Get the ADCx CFGR value 
   tmpreg = ADCx->CFGR1;
 
-  /* Clear SCANDIR, RES[1:0], ALIGN, EXTSEL[2:0], EXTEN[1:0] and CONT bits */
+  // Clear SCANDIR, RES[1:0], ALIGN, EXTSEL[2:0], EXTEN[1:0] and CONT bits 
   tmpreg &= CFGR1_CLEAR_MASK;
 
-  /*---------------------------- ADCx CFGR Configuration ---------------------*/
+  //---------------------------- ADCx CFGR Configuration ---------------------
 
-  /* Set RES[1:0] bits according to ADC_Resolution value */
-  /* Set CONT bit according to ADC_ContinuousConvMode value */
-  /* Set EXTEN[1:0] bits according to ADC_ExternalTrigConvEdge value */
-  /* Set EXTSEL[2:0] bits according to ADC_ExternalTrigConv value */
-  /* Set ALIGN bit according to ADC_DataAlign value */
-  /* Set SCANDIR bit according to ADC_ScanDirection value */
+  // Set RES[1:0] bits according to ADC_Resolution value 
+  // Set CONT bit according to ADC_ContinuousConvMode value 
+  // Set EXTEN[1:0] bits according to ADC_ExternalTrigConvEdge value 
+  // Set EXTSEL[2:0] bits according to ADC_ExternalTrigConv value 
+  // Set ALIGN bit according to ADC_DataAlign value 
+  // Set SCANDIR bit according to ADC_ScanDirection value 
  
   tmpreg  |= (uint32_t)(ADC_InitStruct->ADC_Resolution | ((uint32_t)(ADC_InitStruct->ADC_ContinuousConvMode) << 13) |
              ADC_InitStruct->ADC_ExternalTrigConvEdge | ADC_InitStruct->ADC_ExternalTrigConv |
              ADC_InitStruct->ADC_DataAlign | ADC_InitStruct->ADC_ScanDirection);
 
-  /* Write to ADCx CFGR */
+  // Write to ADCx CFGR 
   ADCx->CFGR1 = tmpreg;
-}
+}*/
 
 /**
   * @brief  Fills each ADC_InitStruct member with its default value.
@@ -198,27 +198,27 @@ void ADC_Init(ADC_TypeDef* ADCx, ADC_InitTypeDef* ADC_InitStruct)
   *         be initialized.
   * @retval None
   */
-void ADC_StructInit(ADC_InitTypeDef* ADC_InitStruct)
+/*void ADC_StructInit(ADC_InitTypeDef* ADC_InitStruct)
 {
-  /* Reset ADC init structure parameters values */
-  /* Initialize the ADC_Resolution member */
+  // Reset ADC init structure parameters values 
+  // Initialize the ADC_Resolution member 
   ADC_InitStruct->ADC_Resolution = ADC_Resolution_12b;
 
-   /* Initialize the ADC_ContinuousConvMode member */
+   // Initialize the ADC_ContinuousConvMode member 
   ADC_InitStruct->ADC_ContinuousConvMode = DISABLE;
 
-  /* Initialize the ADC_ExternalTrigConvEdge member */
+  // Initialize the ADC_ExternalTrigConvEdge member 
   ADC_InitStruct->ADC_ExternalTrigConvEdge = ADC_ExternalTrigConvEdge_None;
 
-  /* Initialize the ADC_ExternalTrigConv member */
+  // Initialize the ADC_ExternalTrigConv member 
   ADC_InitStruct->ADC_ExternalTrigConv = ADC_ExternalTrigConv_T1_TRGO;
 
-  /* Initialize the ADC_DataAlign member */
+  // Initialize the ADC_DataAlign member 
   ADC_InitStruct->ADC_DataAlign = ADC_DataAlign_Right;
 
-  /* Initialize the ADC_ScanDirection member */
+  // Initialize the ADC_ScanDirection member 
   ADC_InitStruct->ADC_ScanDirection = ADC_ScanDirection_Upward;
-}
+}*/
 
 /**
   * @brief  Enables or disables the specified ADC peripheral.
@@ -227,23 +227,23 @@ void ADC_StructInit(ADC_InitTypeDef* ADC_InitStruct)
   *          This parameter can be: ENABLE or DISABLE.
   * @retval None
   */
-void ADC_Cmd(ADC_TypeDef* ADCx, FunctionalState NewState)
+/*void ADC_Cmd(ADC_TypeDef* ADCx, FunctionalState NewState)
 {
-  /* Check the parameters */
+  // Check the parameters 
   assert_param(IS_ADC_ALL_PERIPH(ADCx));
   assert_param(IS_FUNCTIONAL_STATE(NewState));
 
   if (NewState != DISABLE)
   {
-    /* Set the ADEN bit to Enable the ADC peripheral */
+    // Set the ADEN bit to Enable the ADC peripheral 
     ADCx->CR |= (uint32_t)ADC_CR_ADEN;
   }
   else
   {
-    /* Set the ADDIS to Disable the ADC peripheral */
+    // Set the ADDIS to Disable the ADC peripheral 
     ADCx->CR |= (uint32_t)ADC_CR_ADDIS;
   }
-}
+}*/
 
 /**
   * @brief  Configure the ADC to either be clocked by the asynchronous clock(which is
@@ -257,16 +257,16 @@ void ADC_Cmd(ADC_TypeDef* ADCx, FunctionalState NewState)
   *            @arg ADC_ClockMode_SynClkDiv4: ADC clocked by PCLK/4  
   * @retval None
   */
-void ADC_ClockModeConfig(ADC_TypeDef* ADCx, uint32_t ADC_ClockMode)
+/*void ADC_ClockModeConfig(ADC_TypeDef* ADCx, uint32_t ADC_ClockMode)
 {
-  /* Check the parameters */
+  // Check the parameters 
   assert_param(IS_ADC_ALL_PERIPH(ADCx));
   assert_param(IS_ADC_CLOCKMODE(ADC_ClockMode));
 
-    /* Configure the ADC Clock mode according to ADC_ClockMode */
+    // Configure the ADC Clock mode according to ADC_ClockMode 
     ADCx->CFGR2 = (uint32_t)ADC_ClockMode;
 
-}
+}*/
 
 /**
   * @brief  Enables or disables the jitter when the ADC is clocked by PCLK div2
@@ -337,23 +337,23 @@ void ADC_ClockModeConfig(ADC_TypeDef* ADCx, uint32_t ADC_ClockMode)
   *          This parameter can be: ENABLE or DISABLE.
   * @retval None
   */
-void ADC_AutoPowerOffCmd(ADC_TypeDef* ADCx, FunctionalState NewState)
+/*void ADC_AutoPowerOffCmd(ADC_TypeDef* ADCx, FunctionalState NewState)
 {
-  /* Check the parameters */
+  // Check the parameters 
   assert_param(IS_ADC_ALL_PERIPH(ADCx));
   assert_param(IS_FUNCTIONAL_STATE(NewState));
   
   if (NewState != DISABLE)
   {
-    /* Enable the ADC Automatic Power-Off */
+    // Enable the ADC Automatic Power-Off 
     ADCx->CFGR1 |= ADC_CFGR1_AUTOFF;
   }
   else
   {
-    /* Disable the ADC Automatic Power-Off */
+    // Disable the ADC Automatic Power-Off 
     ADCx->CFGR1 &= (uint32_t)~ADC_CFGR1_AUTOFF;
   }
-}
+}*/
 
 /**
   * @brief  Enables or disables the Wait conversion mode.
@@ -711,27 +711,27 @@ void ADC_AutoPowerOffCmd(ADC_TypeDef* ADCx, FunctionalState NewState)
   *            @arg ADC_SampleTime_239_5Cycles: Sample time equal to 239.5 cycles
   * @retval None
   */
-void ADC_ChannelConfig(ADC_TypeDef* ADCx, uint32_t ADC_Channel, uint32_t ADC_SampleTime)
+/*void ADC_ChannelConfig(ADC_TypeDef* ADCx, uint32_t ADC_Channel, uint32_t ADC_SampleTime)
 {
   uint32_t tmpreg = 0;
 
-  /* Check the parameters */
+  // Check the parameters 
   assert_param(IS_ADC_ALL_PERIPH(ADCx));
   assert_param(IS_ADC_CHANNEL(ADC_Channel));
   assert_param(IS_ADC_SAMPLE_TIME(ADC_SampleTime));
 
-  /* Configure the ADC Channel */
+  // Configure the ADC Channel 
   ADCx->CHSELR |= (uint32_t)ADC_Channel;
 
-  /* Clear the Sampling time Selection bits */
+  // Clear the Sampling time Selection bits 
   tmpreg &= ~ADC_SMPR1_SMPR;
 
-  /* Set the ADC Sampling Time register */
+  // Set the ADC Sampling Time register 
   tmpreg |= (uint32_t)ADC_SampleTime;
 
-  /* Configure the ADC Sample time register */
+  // Configure the ADC Sample time register 
   ADCx->SMPR = tmpreg ;
-}
+}*/
 
 /**
   * @brief  Enable the Continuous mode for the selected ADCx channels.
@@ -821,7 +821,7 @@ void ADC_ChannelConfig(ADC_TypeDef* ADCx, uint32_t ADC_Channel, uint32_t ADC_Sam
   * @param  ADCx: where x can be 1 to select the ADC1 peripheral.
   * @retval ADC Calibration factor 
   */
-uint32_t ADC_GetCalibrationFactor(ADC_TypeDef* ADCx)
+/*uint32_t ADC_GetCalibrationFactor(ADC_TypeDef* ADCx)
 {
   uint32_t tmpreg = 0, calibrationcounter = 0, calibrationstatus = 0;
 
@@ -849,7 +849,7 @@ uint32_t ADC_GetCalibrationFactor(ADC_TypeDef* ADCx)
     tmpreg = 0x00000000;
   }
   return tmpreg;
-}
+}*/
 
 /**
   * @brief  Stop the on going conversions for the selected ADC.
@@ -873,13 +873,13 @@ uint32_t ADC_GetCalibrationFactor(ADC_TypeDef* ADCx)
   * @param  ADCx: where x can be 1 to select the ADC1 peripheral.
   * @retval None
   */
-void ADC_StartOfConversion(ADC_TypeDef* ADCx)
+/*void ADC_StartOfConversion(ADC_TypeDef* ADCx)
 {
-  /* Check the parameters */
+  // Check the parameters 
   assert_param(IS_ADC_ALL_PERIPH(ADCx));
   
   ADCx->CR |= (uint32_t)ADC_CR_ADSTART;
-}
+}*/
 
 /**
   * @brief  Returns the last ADCx conversion result data for ADC channel.  
@@ -930,23 +930,23 @@ void ADC_StartOfConversion(ADC_TypeDef* ADCx)
   *          This parameter can be: ENABLE or DISABLE.
   * @retval None
   */
-void ADC_DMACmd(ADC_TypeDef* ADCx, FunctionalState NewState)
+/*void ADC_DMACmd(ADC_TypeDef* ADCx, FunctionalState NewState)
 {
-  /* Check the parameters */
+  // Check the parameters 
   assert_param(IS_ADC_ALL_PERIPH(ADCx));
   assert_param(IS_FUNCTIONAL_STATE(NewState));
 
   if (NewState != DISABLE)
   {
-    /* Enable the selected ADC DMA request */
+    // Enable the selected ADC DMA request 
     ADCx->CFGR1 |= (uint32_t)ADC_CFGR1_DMAEN;
   }
   else
   {
-    /* Disable the selected ADC DMA request */
+    // Disable the selected ADC DMA request 
     ADCx->CFGR1 &= (uint32_t)(~ADC_CFGR1_DMAEN);
   }
-}
+}*/
 
 /**
   * @brief  Enables or disables the ADC DMA request after last transfer (Single-ADC mode)
@@ -957,14 +957,14 @@ void ADC_DMACmd(ADC_TypeDef* ADCx, FunctionalState NewState)
   *            @arg ADC_DMAMode_Circular: DMA Circular Mode  
   *  @retval None
   */
-void ADC_DMARequestModeConfig(ADC_TypeDef* ADCx, uint32_t ADC_DMARequestMode)
+/*void ADC_DMARequestModeConfig(ADC_TypeDef* ADCx, uint32_t ADC_DMARequestMode)
 {
   // Check the parameters
   assert_param(IS_ADC_ALL_PERIPH(ADCx));
 
   ADCx->CFGR1 &= (uint32_t)~ADC_CFGR1_DMACFG;
   ADCx->CFGR1 |= (uint32_t)ADC_DMARequestMode;
-}
+}*/
 
 /**
   * @}
@@ -1102,7 +1102,7 @@ void ADC_DMARequestModeConfig(ADC_TypeDef* ADCx, uint32_t ADC_DMARequestMode)
   *            @arg ADC_FLAG_ADCAL: ADC Calibration flag
   * @retval The new state of ADC_FLAG (SET or RESET).
   */
-FlagStatus ADC_GetFlagStatus(ADC_TypeDef* ADCx, uint32_t ADC_FLAG)
+/*FlagStatus ADC_GetFlagStatus(ADC_TypeDef* ADCx, uint32_t ADC_FLAG)
 {
   FlagStatus bitstatus = RESET;
   uint32_t tmpreg = 0;
@@ -1133,7 +1133,7 @@ FlagStatus ADC_GetFlagStatus(ADC_TypeDef* ADCx, uint32_t ADC_FLAG)
   }
   // Return the ADC_FLAG status
   return  bitstatus;
-}
+}*/
 
 /**
   * @brief  Clears the ADCx's pending flags.
@@ -1211,15 +1211,15 @@ FlagStatus ADC_GetFlagStatus(ADC_TypeDef* ADCx, uint32_t ADC_FLAG)
   *            @arg ADC_IT_AWD: Analog watchdog interrupt
   * @retval None
   */
-void ADC_ClearITPendingBit(ADC_TypeDef* ADCx, uint32_t ADC_IT)
+/*void ADC_ClearITPendingBit(ADC_TypeDef* ADCx, uint32_t ADC_IT)
 {
-  /* Check the parameters */
+  // Check the parameters 
   assert_param(IS_ADC_ALL_PERIPH(ADCx));
   assert_param(IS_ADC_CLEAR_IT(ADC_IT));
 
-  /* Clear the selected ADC interrupt pending bits */
+  // Clear the selected ADC interrupt pending bits 
   ADCx->ISR = (uint32_t)ADC_IT; 
-}
+}*/
 
 /**
   * @}

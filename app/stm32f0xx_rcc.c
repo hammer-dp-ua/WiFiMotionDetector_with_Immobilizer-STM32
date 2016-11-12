@@ -402,7 +402,7 @@ static __I uint8_t APBAHBPrescTable[16] = {0, 0, 0, 0, 1, 2, 3, 4, 1, 2, 3, 4, 6
   *            @arg RCC_LSE_Bypass: LSE oscillator bypassed with external clock
   * @retval None
   */
-void RCC_LSEConfig(uint32_t RCC_LSE)
+/*void RCC_LSEConfig(uint32_t RCC_LSE)
 {
   // Check the parameters
   assert_param(IS_RCC_LSE(RCC_LSE));
@@ -416,7 +416,7 @@ void RCC_LSEConfig(uint32_t RCC_LSE)
 
   // Configure LSE
   RCC->BDCR |= RCC_LSE;
-}
+}*/
 
 /**
   * @brief  Configures the External Low Speed oscillator (LSE) drive capability.
@@ -428,7 +428,7 @@ void RCC_LSEConfig(uint32_t RCC_LSE)
   *            @arg RCC_LSEDrive_High: LSE oscillator high drive capability.
   * @retval None
   */
-void RCC_LSEDriveConfig(uint32_t RCC_LSEDrive)
+/*void RCC_LSEDriveConfig(uint32_t RCC_LSEDrive)
 {
   // Check the parameters
   assert_param(IS_RCC_LSE_DRIVE(RCC_LSEDrive));
@@ -438,7 +438,7 @@ void RCC_LSEDriveConfig(uint32_t RCC_LSEDrive)
 
   // Set the LSE Drive
   RCC->BDCR |= RCC_LSEDrive;
-}
+}*/
 
 /**
   * @brief  Enables or disables the Internal Low Speed oscillator (LSI).
@@ -1282,14 +1282,14 @@ void RCC_GetClocksFreq(RCC_ClocksTypeDef* RCC_Clocks)
   *                          
   * @retval None
   */
-void RCC_RTCCLKConfig(uint32_t RCC_RTCCLKSource)
+/*void RCC_RTCCLKConfig(uint32_t RCC_RTCCLKSource)
 {
   // Check the parameters
   assert_param(IS_RCC_RTCCLK_SOURCE(RCC_RTCCLKSource));
   
   // Select the RTC clock source
   RCC->BDCR |= RCC_RTCCLKSource;
-}
+}*/
 
 /**
   * @brief  Enables or disables the RTC clock.
@@ -1299,7 +1299,7 @@ void RCC_RTCCLKConfig(uint32_t RCC_RTCCLKSource)
   *          This parameter can be: ENABLE or DISABLE.
   * @retval None
   */
-void RCC_RTCCLKCmd(FunctionalState NewState)
+/*void RCC_RTCCLKCmd(FunctionalState NewState)
 {
   // Check the parameters
   assert_param(IS_FUNCTIONAL_STATE(NewState));
@@ -1312,7 +1312,7 @@ void RCC_RTCCLKCmd(FunctionalState NewState)
   {
     RCC->BDCR &= ~RCC_BDCR_RTCEN;
   }
-}
+}*/
 
 /**
   * @brief  Forces or releases the Backup domain reset.
@@ -1322,7 +1322,7 @@ void RCC_RTCCLKCmd(FunctionalState NewState)
   *          This parameter can be: ENABLE or DISABLE.
   * @retval None
   */
-void RCC_BackupResetCmd(FunctionalState NewState)
+/*void RCC_BackupResetCmd(FunctionalState NewState)
 {
   // Check the parameters
   assert_param(IS_FUNCTIONAL_STATE(NewState));
@@ -1335,7 +1335,7 @@ void RCC_BackupResetCmd(FunctionalState NewState)
   {
     RCC->BDCR &= ~RCC_BDCR_BDRST;
   }
-}
+}*/
 
 /**
   * @brief  Enables or disables the AHB peripheral clock.
@@ -1512,7 +1512,7 @@ void RCC_APB1PeriphClockCmd(uint32_t RCC_APB1Periph, FunctionalState NewState)
   *          This parameter can be: ENABLE or DISABLE.
   * @retval None
   */
-void RCC_APB2PeriphResetCmd(uint32_t RCC_APB2Periph, FunctionalState NewState)
+/*void RCC_APB2PeriphResetCmd(uint32_t RCC_APB2Periph, FunctionalState NewState)
 {
   // Check the parameters
   assert_param(IS_RCC_APB2_PERIPH(RCC_APB2Periph));
@@ -1526,7 +1526,7 @@ void RCC_APB2PeriphResetCmd(uint32_t RCC_APB2Periph, FunctionalState NewState)
   {
     RCC->APB2RSTR &= ~RCC_APB2Periph;
   }
-}
+}*/
 
 /**
   * @brief  Forces or releases Low Speed APB (APB1) peripheral reset.
@@ -1555,7 +1555,7 @@ void RCC_APB2PeriphResetCmd(uint32_t RCC_APB2Periph, FunctionalState NewState)
   *          This parameter can be: ENABLE or DISABLE.
   * @retval None
   */
-void RCC_APB1PeriphResetCmd(uint32_t RCC_APB1Periph, FunctionalState NewState)
+/*void RCC_APB1PeriphResetCmd(uint32_t RCC_APB1Periph, FunctionalState NewState)
 {
   // Check the parameters
   assert_param(IS_RCC_APB1_PERIPH(RCC_APB1Periph));
@@ -1569,7 +1569,7 @@ void RCC_APB1PeriphResetCmd(uint32_t RCC_APB1Periph, FunctionalState NewState)
   {
     RCC->APB1RSTR &= ~RCC_APB1Periph;
   }
-}
+}*/
 
 /**
   * @}

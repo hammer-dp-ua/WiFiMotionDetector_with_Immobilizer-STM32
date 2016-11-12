@@ -98,7 +98,7 @@
   *          This parameter can be: ENABLE or DISABLE.
   * @retval None
   */
-void PWR_BackupAccessCmd(FunctionalState NewState)
+/*void PWR_BackupAccessCmd(FunctionalState NewState)
 {
   // Check the parameters
   assert_param(IS_FUNCTIONAL_STATE(NewState));
@@ -113,7 +113,7 @@ void PWR_BackupAccessCmd(FunctionalState NewState)
     // Disable the Backup Domain Access
     PWR->CR &= (uint32_t)~((uint32_t)PWR_CR_DBP);
   } 
-}
+}*/
 
 /**
   * @}

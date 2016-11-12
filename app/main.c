@@ -45,14 +45,13 @@
 #define SUCCESSUFULLY_CONNECTED_TO_NETWORK_FLAG 4
 #define ALARM_FLAG 8
 #define ALARM_SERVER_RECEIVED_FLAG 16
-#define BEEPER_ACTIVATED_FLAG 32
+#define BEEPER_ACTIVATED_AFTER_PAUSE_FLAG 32
 #define BEEPER_SERVER_RECEIVED_ACK_FLAG 64
-// To be added some flag
+#define BEEPER_ACTIVATED_SERVER_RECEIVED_AFTER_PAUSE_FLAG 128
 #define SEND_DEBUG_INFO_FLAG 256
 #define IMMOBILIZER_RELAY_FLAG 512
-#define SEND_IMMOBILIZER_ACTIVATED_FLAG 1024
+// To be added some flag
 #define IMMOBILIZER_ACTIVATED_SERVER_RECEIVED_FLAG 2048
-#define SEND_IMMOBILIZER_ACTIVATED_REQUEST_FLAG 4096
 
 #define GET_VISIBLE_NETWORK_LIST_FLAG 1
 #define DISABLE_ECHO_FLAG 2
@@ -74,6 +73,8 @@
 #define ALARM_RESPONSE_FLAG 131072
 #define SEND_ALARM_FLAG 262144
 #define SEND_ALARM_REQUEST_FLAG 524288
+#define SEND_IMMOBILIZER_ACTIVATED_FLAG 1048576
+#define SEND_IMMOBILIZER_ACTIVATED_REQUEST_FLAG 2097152
 
 #define USART_DATA_RECEIVED_BUFFER_SIZE 1000
 #define PIPED_REQUEST_COMMANDS_TO_SEND_SIZE 3
@@ -188,6 +189,7 @@ volatile unsigned char beeper_interval_timer_g;
 volatile unsigned char beeper_alarm_prior_to_response_period_timer_g;
 volatile unsigned char inactive_alarm_trigger_timer_g;
 volatile unsigned char resets_occured_g;
+volatile unsigned short immobilizer_inactivity_timer_g;
 
 volatile unsigned short usart_overrun_errors_counter_g;
 volatile unsigned short usart_idle_line_detection_counter_g;
@@ -264,6 +266,7 @@ void enable_esp8266();
 void disable_esp8266();
 void disable_immobilizer();
 void enable_immobilizer();
+unsigned char is_immobilizer_enabled();
 unsigned char is_esp8266_enabled(unsigned char include_timer);
 void clear_piped_request_commands_to_send();
 void delete_all_piped_tasks();
@@ -327,6 +330,9 @@ void TIM14_IRQHandler() {
    }
    if (inactive_alarm_trigger_timer_g) {
       inactive_alarm_trigger_timer_g--;
+   }
+   if (immobilizer_inactivity_timer_g) {
+      immobilizer_inactivity_timer_g--;
    }
 }
 
@@ -536,9 +542,9 @@ int main() {
             reset_flag(&general_flags_g, SERVER_IS_AVAILABLE_FLAG);
          }
          if (read_flag(&general_flags_g, SERVER_IS_AVAILABLE_FLAG)) {
-            GPIO_WriteBit(SERVER_AVAILABILITI_LED_PORT, SERVER_AVAILABILITI_LED_PIN, Bit_SET);
+            //GPIO_WriteBit(SERVER_AVAILABILITI_LED_PORT, SERVER_AVAILABILITI_LED_PIN, Bit_SET);
          } else {
-            GPIO_WriteBit(SERVER_AVAILABILITI_LED_PORT, SERVER_AVAILABILITI_LED_PIN, Bit_RESET);
+            //GPIO_WriteBit(SERVER_AVAILABILITI_LED_PORT, SERVER_AVAILABILITI_LED_PIN, Bit_RESET);
          }
 
          if (send_usart_data_errors_counter_g >= 5 || is_piped_tasks_scheduler_full()) {
@@ -549,13 +555,18 @@ int main() {
          }
 
          unsigned char activate_beeper = 0;
-         if (is_immobilizer_relay_status_ready_to_be_read()) {
+         if (!is_immobilizer_enabled() && !immobilizer_inactivity_timer_g) {
+            enable_immobilizer();
+         }
+         if (is_immobilizer_enabled() && is_immobilizer_relay_status_ready_to_be_read()) {
             if (GPIO_ReadInputDataBit(IMMOBILIZER_RELAY_PORT, IMMOBILIZER_RELAY_PIN)) {
-               //add_piped_task_to_send_into_tail(SEND_IMMOBILIZER_ACTIVATED_FLAG);
+               add_piped_task_to_send_into_tail(SEND_IMMOBILIZER_ACTIVATED_FLAG);
                activate_beeper = 1;
-               //GPIO_WriteBit(SERVER_AVAILABILITI_LED_PORT, SERVER_AVAILABILITI_LED_PIN, Bit_SET);
+               immobilizer_inactivity_timer_g = TIMER14_5S; // Will be restored after 30s + this value
+               disable_immobilizer();
+               GPIO_WriteBit(SERVER_AVAILABILITI_LED_PORT, SERVER_AVAILABILITI_LED_PIN, Bit_SET);
             } else {
-               //GPIO_WriteBit(SERVER_AVAILABILITI_LED_PORT, SERVER_AVAILABILITI_LED_PIN, Bit_RESET);
+               GPIO_WriteBit(SERVER_AVAILABILITI_LED_PORT, SERVER_AVAILABILITI_LED_PIN, Bit_RESET);
             }
             reset_immobilizer_relay_status();
          }
@@ -839,7 +850,7 @@ unsigned char handle_get_server_availability_flag(unsigned int current_piped_tas
    if (current_piped_task_to_send == GET_SERVER_AVAILABILITY_FLAG) {
       not_handled = 0;
       // Request 1 part. Preparation
-      delete_piped_task(GET_SERVER_AVAILABILITY_FLAG);
+      delete_piped_task(current_piped_task_to_send);
       get_server_avalability(GET_SERVER_AVAILABILITY_REQUEST_FLAG);
    }
    return not_handled;
@@ -928,7 +939,7 @@ unsigned char handle_send_immobilizer_activated_flag(unsigned int current_piped_
    if (current_piped_task_to_send == SEND_IMMOBILIZER_ACTIVATED_FLAG) {
       not_handled = 0;
       // Request 1 part. Preparation
-      delete_piped_task(SEND_IMMOBILIZER_ACTIVATED_FLAG);
+      delete_piped_task(current_piped_task_to_send);
       send_immobilizer_activity(SEND_IMMOBILIZER_ACTIVATED_REQUEST_FLAG);
    }
    return not_handled;
@@ -1013,10 +1024,11 @@ void beep(unsigned char *beeper_counter, unsigned char activate_beeper, unsigned
    if (activate_beeper && !beeper_inactive_timer_g) {
       beeper_inactive_timer_g = TIMER14_60S;
       *beeper_counter = 1;
-      set_flag(&general_flags_g, BEEPER_ACTIVATED_FLAG);
+      set_flag(&general_flags_g, BEEPER_ACTIVATED_AFTER_PAUSE_FLAG);
+      set_flag(&general_flags_g, BEEPER_ACTIVATED_SERVER_RECEIVED_AFTER_PAUSE_FLAG);
    }
 
-   if (read_flag(&general_flags_g, BEEPER_ACTIVATED_FLAG) && *beeper_counter && !beeper_interval_timer_g) {
+   if (read_flag(&general_flags_g, BEEPER_ACTIVATED_AFTER_PAUSE_FLAG) && *beeper_counter && !beeper_interval_timer_g) {
       beeper_interval_timer_g = TIMER14_200MS;
 
       switch (*beeper_counter) {
@@ -1037,19 +1049,18 @@ void beep(unsigned char *beeper_counter, unsigned char activate_beeper, unsigned
             *beeper_counter = 0;
             beeper_interval_timer_g = 0;
             beeper_alarm_prior_to_response_period_timer_g = TIMER14_500MS;
-            reset_flag(&general_flags_g, BEEPER_ACTIVATED_FLAG);
+            reset_flag(&general_flags_g, BEEPER_ACTIVATED_AFTER_PAUSE_FLAG);
             break;
       }
    }
 
-   if (server_received_ack && !read_flag(&general_flags_g, BEEPER_ACTIVATED_FLAG) && !beeper_inactive_timer_g) {
+   if (server_received_ack && read_flag(&general_flags_g, BEEPER_ACTIVATED_SERVER_RECEIVED_AFTER_PAUSE_FLAG) && !read_flag(&general_flags_g, BEEPER_ACTIVATED_AFTER_PAUSE_FLAG)) {
       on_server_received();
       *beeper_counter = 1;
       set_flag(&general_flags_g, BEEPER_SERVER_RECEIVED_ACK_FLAG);
    }
 
-   if (read_flag(&general_flags_g, BEEPER_SERVER_RECEIVED_ACK_FLAG) &&
-         !beeper_alarm_prior_to_response_period_timer_g && *beeper_counter && !beeper_interval_timer_g) {
+   if (read_flag(&general_flags_g, BEEPER_SERVER_RECEIVED_ACK_FLAG) && !beeper_alarm_prior_to_response_period_timer_g && *beeper_counter && !beeper_interval_timer_g) {
       beeper_interval_timer_g = TIMER14_200MS;
 
       switch (*beeper_counter) {
@@ -1070,6 +1081,7 @@ void beep(unsigned char *beeper_counter, unsigned char activate_beeper, unsigned
             *beeper_counter = 0;
             beeper_interval_timer_g = 0;
             reset_flag(&general_flags_g, BEEPER_SERVER_RECEIVED_ACK_FLAG);
+            reset_flag(&general_flags_g, BEEPER_ACTIVATED_SERVER_RECEIVED_AFTER_PAUSE_FLAG);
             break;
       }
    }
@@ -1642,7 +1654,7 @@ void TIMER14_Confing() {
    TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
    TIM_TimeBaseStructure.TIM_Period = 24;
    TIM_TimeBaseStructure.TIM_Prescaler = 0xFFFF;
-   TIM_TimeBaseStructure.TIM_ClockDivision = TIM_CKD_DIV1;
+   TIM_TimeBaseStructure.TIM_ClockDivision = TIM_CKD_DIV2;
    TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up;
    TIM_TimeBaseInit(TIM14, &TIM_TimeBaseStructure);
 
@@ -1985,6 +1997,10 @@ void disable_immobilizer() {
 
 void enable_immobilizer() {
    GPIO_WriteBit(IMMOBILIZER_ENABLE_PORT, IMMOBILIZER_ENABLE_PIN, Bit_SET);
+}
+
+unsigned char is_immobilizer_enabled() {
+   return GPIO_ReadOutputDataBit(IMMOBILIZER_ENABLE_PORT, IMMOBILIZER_ENABLE_PIN);
 }
 
 unsigned char is_esp8266_enabled(unsigned char include_timer) {

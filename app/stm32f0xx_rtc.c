@@ -378,45 +378,45 @@
   *          - SUCCESS: RTC registers are initialized
   *          - ERROR: RTC registers are not initialized  
   */
-ErrorStatus RTC_Init(RTC_InitTypeDef* RTC_InitStruct)
+/*ErrorStatus RTC_Init(RTC_InitTypeDef* RTC_InitStruct)
 {
   ErrorStatus status = ERROR;
 
-  /* Check the parameters */
+  // Check the parameters 
   assert_param(IS_RTC_HOUR_FORMAT(RTC_InitStruct->RTC_HourFormat));
   assert_param(IS_RTC_ASYNCH_PREDIV(RTC_InitStruct->RTC_AsynchPrediv));
   assert_param(IS_RTC_SYNCH_PREDIV(RTC_InitStruct->RTC_SynchPrediv));
 
-  /* Disable the write protection for RTC registers */
+  // Disable the write protection for RTC registers 
   RTC->WPR = 0xCA;
   RTC->WPR = 0x53;
 
-  /* Set Initialization mode */
+  // Set Initialization mode 
   if (RTC_EnterInitMode() == ERROR)
   {
     status = ERROR;
   }
   else
   {
-    /* Clear RTC CR FMT Bit */
+    // Clear RTC CR FMT Bit 
     RTC->CR &= ((uint32_t)~(RTC_CR_FMT));
-    /* Set RTC_CR register */
+    // Set RTC_CR register 
     RTC->CR |=  ((uint32_t)(RTC_InitStruct->RTC_HourFormat));
   
-    /* Configure the RTC PRER */
+    // Configure the RTC PRER 
     RTC->PRER = (uint32_t)(RTC_InitStruct->RTC_SynchPrediv);
     RTC->PRER |= (uint32_t)(RTC_InitStruct->RTC_AsynchPrediv << 16);
 
-    /* Exit Initialization mode */
+    // Exit Initialization mode 
     RTC_ExitInitMode();
 
     status = SUCCESS;
   }
-  /* Enable the write protection for RTC registers */
+  // Enable the write protection for RTC registers 
   RTC->WPR = 0xFF;
 
   return status;
-}
+}*/
 
 /**
   * @brief  Fills each RTC_InitStruct member with its default value.
@@ -424,17 +424,17 @@ ErrorStatus RTC_Init(RTC_InitTypeDef* RTC_InitStruct)
   *         initialized.
   * @retval None
   */
-void RTC_StructInit(RTC_InitTypeDef* RTC_InitStruct)
+/*void RTC_StructInit(RTC_InitTypeDef* RTC_InitStruct)
 {
-  /* Initialize the RTC_HourFormat member */
+  // Initialize the RTC_HourFormat member 
   RTC_InitStruct->RTC_HourFormat = RTC_HourFormat_24;
 
-  /* Initialize the RTC_AsynchPrediv member */
+  // Initialize the RTC_AsynchPrediv member 
   RTC_InitStruct->RTC_AsynchPrediv = (uint32_t)0x7F;
 
-  /* Initialize the RTC_SynchPrediv member */
+  // Initialize the RTC_SynchPrediv member 
   RTC_InitStruct->RTC_SynchPrediv = (uint32_t)0xFF; 
-}
+}*/
 
 /**
   * @brief  Enables or disables the RTC registers write protection.
@@ -446,7 +446,7 @@ void RTC_StructInit(RTC_InitTypeDef* RTC_InitStruct)
   *          This parameter can be: ENABLE or DISABLE.
   * @retval None
   */
-void RTC_WriteProtectionCmd(FunctionalState NewState)
+/*void RTC_WriteProtectionCmd(FunctionalState NewState)
 {
   // Check the parameters
   assert_param(IS_FUNCTIONAL_STATE(NewState));
@@ -462,7 +462,7 @@ void RTC_WriteProtectionCmd(FunctionalState NewState)
     RTC->WPR = 0xCA;
     RTC->WPR = 0x53;
   }
-}
+}*/
 
 /**
   * @brief  Enters the RTC Initialization mode.
@@ -473,7 +473,7 @@ void RTC_WriteProtectionCmd(FunctionalState NewState)
   *          - SUCCESS: RTC is in Init mode
   *          - ERROR: RTC is not in Init mode
   */
-ErrorStatus RTC_EnterInitMode(void)
+/*ErrorStatus RTC_EnterInitMode(void)
 {
   __IO uint32_t initcounter = 0x00;
   ErrorStatus status = ERROR;
@@ -507,7 +507,7 @@ ErrorStatus RTC_EnterInitMode(void)
   }
 
   return (status);
-}
+}*/
 
 /**
   * @brief  Exits the RTC Initialization mode.
@@ -518,11 +518,11 @@ ErrorStatus RTC_EnterInitMode(void)
   * @param  None
   * @retval None
   */
-void RTC_ExitInitMode(void)
+/*void RTC_ExitInitMode(void)
 {
   // Exit Initialization mode
   RTC->ISR &= (uint32_t)~RTC_ISR_INIT;
-}
+}*/
 
 /**
   * @brief  Waits until the RTC Time and Date registers (RTC_TR and RTC_DR) are 
@@ -540,7 +540,7 @@ void RTC_ExitInitMode(void)
   *          - SUCCESS: RTC registers are synchronised
   *          - ERROR: RTC registers are not synchronised
   */
-ErrorStatus RTC_WaitForSynchro(void)
+/*ErrorStatus RTC_WaitForSynchro(void)
 {
   __IO uint32_t synchrocounter = 0;
   ErrorStatus status = ERROR;
@@ -581,7 +581,7 @@ ErrorStatus RTC_WaitForSynchro(void)
   }
 
   return (status);
-}
+}*/
 
 /**
   * @brief  Enables or disables the RTC reference clock detection.
@@ -1223,21 +1223,21 @@ ErrorStatus RTC_WaitForSynchro(void)
   *          - SUCCESS: RTC Alarm is enabled/disabled
   *          - ERROR: RTC Alarm is not enabled/disabled  
   */
-ErrorStatus RTC_AlarmCmd(uint32_t RTC_Alarm, FunctionalState NewState)
+/*ErrorStatus RTC_AlarmCmd(uint32_t RTC_Alarm, FunctionalState NewState)
 {
   __IO uint32_t alarmcounter = 0x00;
   uint32_t alarmstatus = 0x00;
   ErrorStatus status = ERROR;
     
-  /* Check the parameters */
+  // Check the parameters 
   assert_param(IS_RTC_CMD_ALARM(RTC_Alarm));
   assert_param(IS_FUNCTIONAL_STATE(NewState));
 
-  /* Disable the write protection for RTC registers */
+  // Disable the write protection for RTC registers 
   RTC->WPR = 0xCA;
   RTC->WPR = 0x53;
 
-  /* Configure the Alarm state */
+  // Configure the Alarm state 
   if (NewState != DISABLE)
   {
     RTC->CR |= (uint32_t)RTC_Alarm;
@@ -1246,10 +1246,10 @@ ErrorStatus RTC_AlarmCmd(uint32_t RTC_Alarm, FunctionalState NewState)
   }
   else
   { 
-    /* Disable the Alarm in RTC_CR register */
+    // Disable the Alarm in RTC_CR register 
     RTC->CR &= (uint32_t)~RTC_Alarm;
    
-    /* Wait till RTC ALRxWF flag is set and if Time out is reached exit */
+    // Wait till RTC ALRxWF flag is set and if Time out is reached exit 
     do
     {
       alarmstatus = RTC->ISR & (RTC_Alarm >> 8);
@@ -1266,11 +1266,11 @@ ErrorStatus RTC_AlarmCmd(uint32_t RTC_Alarm, FunctionalState NewState)
     }        
   } 
 
-  /* Enable the write protection for RTC registers */
+  // Enable the write protection for RTC registers 
   RTC->WPR = 0xFF;
   
   return status;
-}
+}*/
 
 /**
   * @brief  Configure the RTC AlarmA/B Subseconds value and mask.
@@ -2315,33 +2315,33 @@ ErrorStatus RTC_SmoothCalibConfig(uint32_t RTC_SmoothCalibPeriod,
   *          This parameter can be: ENABLE or DISABLE.
   * @retval None
   */
-void RTC_ITConfig(uint32_t RTC_IT, FunctionalState NewState)
+/*void RTC_ITConfig(uint32_t RTC_IT, FunctionalState NewState)
 {
-  /* Check the parameters */
+  // Check the parameters 
   assert_param(IS_RTC_CONFIG_IT(RTC_IT));
   assert_param(IS_FUNCTIONAL_STATE(NewState));
 
-  /* Disable the write protection for RTC registers */
+  // Disable the write protection for RTC registers 
   RTC->WPR = 0xCA;
   RTC->WPR = 0x53;
 
   if (NewState != DISABLE)
   {
-    /* Configure the Interrupts in the RTC_CR register */
+    // Configure the Interrupts in the RTC_CR register 
     RTC->CR |= (uint32_t)(RTC_IT & ~RTC_TAFCR_TAMPIE);
-    /* Configure the Tamper Interrupt in the RTC_TAFCR */
+    // Configure the Tamper Interrupt in the RTC_TAFCR 
     RTC->TAFCR |= (uint32_t)(RTC_IT & RTC_TAFCR_TAMPIE);
   }
   else
   {
-    /* Configure the Interrupts in the RTC_CR register */
+    // Configure the Interrupts in the RTC_CR register 
     RTC->CR &= (uint32_t)~(RTC_IT & (uint32_t)~RTC_TAFCR_TAMPIE);
-    /* Configure the Tamper Interrupt in the RTC_TAFCR */
+    // Configure the Tamper Interrupt in the RTC_TAFCR 
     RTC->TAFCR &= (uint32_t)~(RTC_IT & RTC_TAFCR_TAMPIE);
   }
-  /* Enable the write protection for RTC registers */
+  // Enable the write protection for RTC registers 
   RTC->WPR = 0xFF; 
-}
+}*/
 
 /**
   * @brief  Checks whether the specified RTC flag is set or not.
@@ -2455,19 +2455,19 @@ void RTC_ITConfig(uint32_t RTC_IT, FunctionalState NewState)
   *            @arg RTC_IT_TAMP2: Tamper2 event interrupt
   * @retval None
   */
-void RTC_ClearITPendingBit(uint32_t RTC_IT)
+/*void RTC_ClearITPendingBit(uint32_t RTC_IT)
 {
   uint32_t tmpreg = 0;
 
-  /* Check the parameters */
+  // Check the parameters 
   assert_param(IS_RTC_CLEAR_IT(RTC_IT));
 
-  /* Get the RTC_ISR Interrupt pending bits mask */
+  // Get the RTC_ISR Interrupt pending bits mask 
   tmpreg = (uint32_t)(RTC_IT >> 4);
   RTC_IT = (uint32_t)((uint32_t)(~((tmpreg | RTC_ISR_INIT)& 0x0000FFFF) | (uint32_t)(RTC->ISR & RTC_ISR_INIT)));
-  /* Clear the interrupt pending bits in the RTC_ISR register */
+  // Clear the interrupt pending bits in the RTC_ISR register 
   RTC->ISR = (uint32_t)((uint32_t)(~((tmpreg | RTC_ISR_INIT)& 0x0000FFFF) | (uint32_t)(RTC->ISR & RTC_ISR_INIT))); 
-}
+}*/
 
 /**
   * @}

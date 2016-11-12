@@ -74,20 +74,20 @@
   * @param  None
   * @retval Device revision identifier
   */
-uint32_t DBGMCU_GetREVID(void)
+/*uint32_t DBGMCU_GetREVID(void)
 {
    return(DBGMCU->IDCODE >> 16);
-}
+}*/
 
 /**
   * @brief  Returns the device identifier.
   * @param  None
   * @retval Device identifier
   */
-uint32_t DBGMCU_GetDEVID(void)
+/*uint32_t DBGMCU_GetDEVID(void)
 {
    return(DBGMCU->IDCODE & IDCODE_DEVID_MASK);
-}
+}*/
 
 /**
   * @}
@@ -115,9 +115,9 @@ uint32_t DBGMCU_GetDEVID(void)
   *          This parameter can be: ENABLE or DISABLE.
   * @retval None
   */
-void DBGMCU_Config(uint32_t DBGMCU_Periph, FunctionalState NewState)
+/*void DBGMCU_Config(uint32_t DBGMCU_Periph, FunctionalState NewState)
 {
-  /* Check the parameters */
+  // Check the parameters 
   assert_param(IS_DBGMCU_PERIPH(DBGMCU_Periph));
   assert_param(IS_FUNCTIONAL_STATE(NewState));
 
@@ -129,7 +129,7 @@ void DBGMCU_Config(uint32_t DBGMCU_Periph, FunctionalState NewState)
   {
     DBGMCU->CR &= ~DBGMCU_Periph;
   }
-}
+}*/
 
 
 /**
@@ -183,9 +183,9 @@ void DBGMCU_APB1PeriphConfig(uint32_t DBGMCU_Periph, FunctionalState NewState)
   *          This parameter can be: ENABLE or DISABLE.
   * @retval None
   */
-void DBGMCU_APB2PeriphConfig(uint32_t DBGMCU_Periph, FunctionalState NewState)
+/*void DBGMCU_APB2PeriphConfig(uint32_t DBGMCU_Periph, FunctionalState NewState)
 {
-  /* Check the parameters */
+  // Check the parameters 
   assert_param(IS_DBGMCU_APB2PERIPH(DBGMCU_Periph));
   assert_param(IS_FUNCTIONAL_STATE(NewState));
 
@@ -197,7 +197,7 @@ void DBGMCU_APB2PeriphConfig(uint32_t DBGMCU_Periph, FunctionalState NewState)
   {
     DBGMCU->APB2FZ &= ~DBGMCU_Periph;
   }
-}
+}*/
 
 /**
   * @}

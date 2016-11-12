@@ -432,13 +432,13 @@ void DMA_SetCurrDataCounter(DMA_Channel_TypeDef* DMAy_Channelx, uint16_t DataNum
   * @retval The number of remaining data units in the current DMAy Channelx
   *         transfer.
   */
-uint16_t DMA_GetCurrDataCounter(DMA_Channel_TypeDef* DMAy_Channelx)
+/*uint16_t DMA_GetCurrDataCounter(DMA_Channel_TypeDef* DMAy_Channelx)
 {
   // Check the parameters 
   assert_param(IS_DMA_ALL_PERIPH(DMAy_Channelx));
   // Return the number of remaining data units for DMAy Channelx 
   return ((uint16_t)(DMAy_Channelx->CNDTR));
-}
+}*/
 
 /**
   * @}
@@ -759,40 +759,40 @@ void DMA_ITConfig(DMA_Channel_TypeDef* DMAy_Channelx, uint32_t DMA_IT, Functiona
   *      
   * @retval The new state of DMA_IT (SET or RESET).
   */
-ITStatus DMA_GetITStatus(uint32_t DMAy_IT)
+/*ITStatus DMA_GetITStatus(uint32_t DMAy_IT)
 {
   ITStatus bitstatus = RESET;
   uint32_t tmpreg = 0;
 
-  /* Check the parameters */
+  // Check the parameters 
   assert_param(IS_DMA_GET_IT(DMAy_IT));
 
-  /* Calculate the used DMA */
+  // Calculate the used DMA 
   if ((DMAy_IT & FLAG_Mask) != (uint32_t)RESET)
   {
-    /* Get DMA2 ISR register value */
+    // Get DMA2 ISR register value 
     tmpreg = DMA2->ISR;
   }
   else
   {
-    /* Get DMA1 ISR register value */
+    // Get DMA1 ISR register value 
     tmpreg = DMA1->ISR;
   }
 
-  /* Check the status of the specified DMAy interrupt */
+  // Check the status of the specified DMAy interrupt 
   if ((tmpreg & DMAy_IT) != (uint32_t)RESET)
   {
-    /* DMAy_IT is set */
+    // DMAy_IT is set 
     bitstatus = SET;
   }
   else
   {
-    /* DMAy_IT is reset */
+    // DMAy_IT is reset 
     bitstatus = RESET;
   }
-  /* Return the DMAy_IT status */
+  // Return the DMAy_IT status 
   return  bitstatus;
-}
+}*/
 
 /**
   * @brief  Clears the DMAy Channelx's interrupt pending bits.

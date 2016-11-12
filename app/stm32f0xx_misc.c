@@ -112,9 +112,9 @@ void NVIC_Init(NVIC_InitTypeDef* NVIC_InitStruct)
   *          This parameter can be: ENABLE or DISABLE.
   * @retval None
   */
-void NVIC_SystemLPConfig(uint8_t LowPowerMode, FunctionalState NewState)
+/*void NVIC_SystemLPConfig(uint8_t LowPowerMode, FunctionalState NewState)
 {
-  /* Check the parameters */
+  // Check the parameters 
   assert_param(IS_NVIC_LP(LowPowerMode));
   
   assert_param(IS_FUNCTIONAL_STATE(NewState));  
@@ -127,7 +127,7 @@ void NVIC_SystemLPConfig(uint8_t LowPowerMode, FunctionalState NewState)
   {
     SCB->SCR &= (uint32_t)(~(uint32_t)LowPowerMode);
   }
-}
+}*/
 
 /**
   * @brief  Configures the SysTick clock source.
