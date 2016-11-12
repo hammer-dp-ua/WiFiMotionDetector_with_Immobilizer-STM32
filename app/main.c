@@ -114,7 +114,6 @@ unsigned int piped_tasks_to_send_g[PIPED_TASKS_TO_SEND_SIZE];
 unsigned int piped_tasks_history_g[PIPED_TASKS_HISTORY_SIZE];
 char *piped_request_commands_to_send_g[PIPED_REQUEST_COMMANDS_TO_SEND_SIZE]; // AT+CIPSTART="TCP","address",port; AT+CIPSEND=bytes_to_send; a request
 unsigned int sent_flag_g;
-unsigned int successfully_received_flags_g;
 unsigned int general_flags_g;
 
 char USART_OK[] __attribute__ ((section(".text.const"))) = "OK";
@@ -278,7 +277,6 @@ void send_immobilizer_activity(unsigned int request_task);
 void get_own_ip_address();
 void set_own_ip_address();
 void close_connection();
-void set_appropriate_successfully_recieved_flag_general_action(unsigned int flag_value, char to_be_contained_in_response[]);
 void add_error();
 void check_connection_status_and_server_availability(unsigned short *counter);
 void add_piped_task_into_history(unsigned int task);
@@ -459,7 +457,7 @@ int main() {
             current_piped_task_to_send = 0;
          }
 
-         if (current_piped_task_to_send || successfully_received_flags_g || sent_flag) {
+         if (current_piped_task_to_send || sent_flag) {
             unsigned char not_handled = 1;
             not_handled = handle_disable_echo_flag(current_piped_task_to_send, &sent_flag);
 
@@ -537,11 +535,11 @@ int main() {
          } else {
             reset_flag(&general_flags_g, SERVER_IS_AVAILABLE_FLAG);
          }
-         /*if (read_flag(&general_flags_g, SERVER_IS_AVAILABLE_FLAG)) {
+         if (read_flag(&general_flags_g, SERVER_IS_AVAILABLE_FLAG)) {
             GPIO_WriteBit(SERVER_AVAILABILITI_LED_PORT, SERVER_AVAILABILITI_LED_PIN, Bit_SET);
          } else {
             GPIO_WriteBit(SERVER_AVAILABILITI_LED_PORT, SERVER_AVAILABILITI_LED_PIN, Bit_RESET);
-         }*/
+         }
 
          if (send_usart_data_errors_counter_g >= 5 || is_piped_tasks_scheduler_full()) {
             reset_device_state();
@@ -555,9 +553,9 @@ int main() {
             if (GPIO_ReadInputDataBit(IMMOBILIZER_RELAY_PORT, IMMOBILIZER_RELAY_PIN)) {
                //add_piped_task_to_send_into_tail(SEND_IMMOBILIZER_ACTIVATED_FLAG);
                activate_beeper = 1;
-               GPIO_WriteBit(SERVER_AVAILABILITI_LED_PORT, SERVER_AVAILABILITI_LED_PIN, Bit_SET);
+               //GPIO_WriteBit(SERVER_AVAILABILITI_LED_PORT, SERVER_AVAILABILITI_LED_PIN, Bit_SET);
             } else {
-               GPIO_WriteBit(SERVER_AVAILABILITI_LED_PORT, SERVER_AVAILABILITI_LED_PIN, Bit_RESET);
+               //GPIO_WriteBit(SERVER_AVAILABILITI_LED_PORT, SERVER_AVAILABILITI_LED_PIN, Bit_RESET);
             }
             reset_immobilizer_relay_status();
          }
@@ -586,10 +584,13 @@ unsigned char handle_disable_echo_flag(unsigned int current_piped_task_to_send, 
       schedule_function_resending(disable_echo, 2, EXECUTE_FUNCTION_IMMEDIATELY);
    } else if (read_flag(sent_flag, DISABLE_ECHO_FLAG)) {
       not_handled = 0;
-      set_appropriate_successfully_recieved_flag_general_action(DISABLE_ECHO_FLAG, USART_OK);
-   } else if (read_flag(&successfully_received_flags_g, DISABLE_ECHO_FLAG)) {
-      not_handled = 0;
-      on_successfully_receive_general_actions(DISABLE_ECHO_FLAG);
+      reset_flag(&sent_flag_g, DISABLE_ECHO_FLAG);
+
+      if (is_usart_response_contains_element(USART_OK)) {
+         on_successfully_receive_general_actions();
+      } else {
+         add_error();
+      }
    }
    return not_handled;
 }
@@ -602,27 +603,22 @@ unsigned char handle_get_connection_status_and_connect_flag(unsigned int current
       schedule_function_resending(get_connection_status, 2, EXECUTE_FUNCTION_IMMEDIATELY);
    } else if (read_flag(sent_flag, GET_CONNECTION_STATUS_AND_CONNECT_FLAG)) {
       not_handled = 0;
+      reset_flag(&sent_flag_g, GET_CONNECTION_STATUS_AND_CONNECT_FLAG);
 
       if (is_usart_response_contains_element(DEFAULT_ACCESS_POINT_NAME) || is_usart_response_contains_element(ESP8226_RESPONSE_NOT_CONNECTED_STATUS)) {
-         set_flag(&successfully_received_flags_g, GET_CONNECTION_STATUS_AND_CONNECT_FLAG);
+         on_successfully_receive_general_actions();
+
+         if (is_usart_response_contains_element(DEFAULT_ACCESS_POINT_NAME)) {
+            // Has already been connected
+            set_flag(&general_flags_g, SUCCESSUFULLY_CONNECTED_TO_NETWORK_FLAG);
+         } else if (is_usart_response_contains_element(ESP8226_RESPONSE_NOT_CONNECTED_STATUS)) {
+            reset_flag(&general_flags_g, SUCCESSUFULLY_CONNECTED_TO_NETWORK_FLAG);
+            // Connect
+            add_piped_task_to_send_into_head(CONNECT_TO_NETWORK_FLAG);
+         }
       } else {
          reset_flag(&general_flags_g, SUCCESSUFULLY_CONNECTED_TO_NETWORK_FLAG);
          add_error();
-      }
-
-      reset_flag(&sent_flag_g, GET_CONNECTION_STATUS_AND_CONNECT_FLAG);
-   } else if (read_flag(&successfully_received_flags_g, GET_CONNECTION_STATUS_AND_CONNECT_FLAG)) {
-      not_handled = 0;
-      on_successfully_receive_general_actions(GET_CONNECTION_STATUS_AND_CONNECT_FLAG);
-
-      if (is_usart_response_contains_element(DEFAULT_ACCESS_POINT_NAME)) {
-         // Has already been connected
-         set_flag(&general_flags_g, SUCCESSUFULLY_CONNECTED_TO_NETWORK_FLAG);
-
-      } else if (is_usart_response_contains_element(ESP8226_RESPONSE_NOT_CONNECTED_STATUS)) {
-         reset_flag(&general_flags_g, SUCCESSUFULLY_CONNECTED_TO_NETWORK_FLAG);
-         // Connect
-         add_piped_task_to_send_into_head(CONNECT_TO_NETWORK_FLAG);
       }
    }
    return not_handled;
@@ -636,24 +632,20 @@ unsigned char handle_get_connection_status_flag(unsigned int current_piped_task_
       schedule_function_resending(get_connection_status, 2, EXECUTE_FUNCTION_IMMEDIATELY);
    } else if (read_flag(sent_flag, GET_CONNECTION_STATUS_FLAG)) {
       not_handled = 0;
+      reset_flag(&sent_flag_g, GET_CONNECTION_STATUS_FLAG);
 
       if (is_usart_response_contains_element(DEFAULT_ACCESS_POINT_NAME) || is_usart_response_contains_element(ESP8226_RESPONSE_NOT_CONNECTED_STATUS)) {
-         set_flag(&successfully_received_flags_g, GET_CONNECTION_STATUS_FLAG);
+         on_successfully_receive_general_actions();
+
+         if (is_usart_response_contains_element(DEFAULT_ACCESS_POINT_NAME)) {
+            // Has already been connected
+            set_flag(&general_flags_g, SUCCESSUFULLY_CONNECTED_TO_NETWORK_FLAG);
+         } else if (is_usart_response_contains_element(ESP8226_RESPONSE_NOT_CONNECTED_STATUS)) {
+            reset_flag(&general_flags_g, SUCCESSUFULLY_CONNECTED_TO_NETWORK_FLAG);
+         }
       } else {
          reset_flag(&general_flags_g, SUCCESSUFULLY_CONNECTED_TO_NETWORK_FLAG);
          add_error();
-      }
-
-      reset_flag(&sent_flag_g, GET_CONNECTION_STATUS_FLAG);
-   } else if (read_flag(&successfully_received_flags_g, GET_CONNECTION_STATUS_FLAG)) {
-      not_handled = 0;
-      on_successfully_receive_general_actions(GET_CONNECTION_STATUS_FLAG);
-
-      if (is_usart_response_contains_element(DEFAULT_ACCESS_POINT_NAME)) {
-         // Has already been connected
-         set_flag(&general_flags_g, SUCCESSUFULLY_CONNECTED_TO_NETWORK_FLAG);
-      } else if (is_usart_response_contains_element(ESP8226_RESPONSE_NOT_CONNECTED_STATUS)) {
-         reset_flag(&general_flags_g, SUCCESSUFULLY_CONNECTED_TO_NETWORK_FLAG);
       }
    }
    return not_handled;
@@ -667,13 +659,16 @@ unsigned char handle_connect_to_network_flag(unsigned int current_piped_task_to_
       schedule_function_resending(connect_to_network, 10, EXECUTE_FUNCTION_IMMEDIATELY);
    } else if (read_flag(sent_flag, CONNECT_TO_NETWORK_FLAG)) {
       not_handled = 0;
-      set_appropriate_successfully_recieved_flag_general_action(CONNECT_TO_NETWORK_FLAG, USART_OK);
-   } else if (read_flag(&successfully_received_flags_g, CONNECT_TO_NETWORK_FLAG)) {
-      not_handled = 0;
-      on_successfully_receive_general_actions(CONNECT_TO_NETWORK_FLAG);
+      reset_flag(&sent_flag_g, CONNECT_TO_NETWORK_FLAG);
 
-      set_flag(&general_flags_g, SUCCESSUFULLY_CONNECTED_TO_NETWORK_FLAG);
-      GPIO_WriteBit(NETWORK_STATUS_LED_PORT, NETWORK_STATUS_LED_PIN, Bit_SET);
+      if (is_usart_response_contains_element(USART_OK)) {
+         on_successfully_receive_general_actions();
+
+         set_flag(&general_flags_g, SUCCESSUFULLY_CONNECTED_TO_NETWORK_FLAG);
+         GPIO_WriteBit(NETWORK_STATUS_LED_PORT, NETWORK_STATUS_LED_PIN, Bit_SET);
+      } else {
+         add_error();
+      }
    }
    return not_handled;
 }
@@ -690,19 +685,16 @@ unsigned char handle_connect_to_server_flag(unsigned int current_piped_task_to_s
 
       char *data_to_be_contained[] = {ESP8226_RESPONSE_CONNECTED, USART_OK};
       if (is_usart_response_contains_elements(data_to_be_contained, 2) || is_usart_response_contains_element(ESP8226_RESPONSE_ALREADY_CONNECTED)) {
-         set_flag(&successfully_received_flags_g, CONNECT_TO_SERVER_FLAG);
+         on_successfully_receive_general_actions();
       } else {
          add_error();
       }
-   } else if (read_flag(&successfully_received_flags_g, CONNECT_TO_SERVER_FLAG)) {
-      not_handled = 0;
-      on_successfully_receive_general_actions(CONNECT_TO_SERVER_FLAG);
    }
    return not_handled;
 }
 
 unsigned char handle_set_bytes_to_send_in_request_flag(unsigned int current_piped_task_to_send, unsigned int *sent_flag) {
-   unsigned char not_handled = 0;
+   unsigned char not_handled = 1;
 
    if (current_piped_task_to_send == SET_BYTES_TO_SEND_IN_REQUEST_FLAG) {
       not_handled = 0;
@@ -712,14 +704,11 @@ unsigned char handle_set_bytes_to_send_in_request_flag(unsigned int current_pipe
       reset_flag(&sent_flag_g, SET_BYTES_TO_SEND_IN_REQUEST_FLAG);
 
       if (is_usart_response_contains_element(ESP8226_RESPONSE_START_SENDING_READY)) {
-         set_flag(&successfully_received_flags_g, SET_BYTES_TO_SEND_IN_REQUEST_FLAG);
+         on_successfully_receive_general_actions();
       } else {
          //resend_usart_get_request(GET_REQUEST_SENT_AND_RESPONSE_RECEIVED_FLAG);
          add_error();
       }
-   } else if (read_flag(&successfully_received_flags_g, SET_BYTES_TO_SEND_IN_REQUEST_FLAG)) {
-      not_handled = 0;
-      on_successfully_receive_general_actions(SET_BYTES_TO_SEND_IN_REQUEST_FLAG);
    }
    return not_handled;
 }
@@ -736,14 +725,11 @@ unsigned char handle_get_request_sent_and_response_received_flag(unsigned int cu
 
       char *data_to_be_contained[] = {ESP8226_RESPONSE_SUCCSESSFULLY_SENT, ESP8226_RESPONSE_PREFIX};
       if (is_usart_response_contains_elements(data_to_be_contained, 2)) {
-         set_flag(&successfully_received_flags_g, GET_REQUEST_SENT_AND_RESPONSE_RECEIVED_FLAG);
+         on_successfully_receive_general_actions();
       } else {
          //resend_usart_get_request(GET_REQUEST_SENT_AND_RESPONSE_RECEIVED_FLAG);
          add_error();
       }
-   } else if (read_flag(&successfully_received_flags_g, GET_REQUEST_SENT_AND_RESPONSE_RECEIVED_FLAG)) {
-      not_handled = 0;
-      on_successfully_receive_general_actions(GET_REQUEST_SENT_AND_RESPONSE_RECEIVED_FLAG);
    }
    return not_handled;
 }
@@ -756,13 +742,16 @@ unsigned char handle_get_current_default_wifi_mode_flag(unsigned int current_pip
       schedule_function_resending(get_current_default_wifi_mode, 2, EXECUTE_FUNCTION_IMMEDIATELY);
    } else if (read_flag(sent_flag, GET_CURRENT_DEFAULT_WIFI_MODE_FLAG)) {
       not_handled = 0;
-      set_appropriate_successfully_recieved_flag_general_action(GET_CURRENT_DEFAULT_WIFI_MODE_FLAG, ESP8226_RESPONSE_WIFI_MODE_PREFIX);
-   } else if (read_flag(&successfully_received_flags_g, GET_CURRENT_DEFAULT_WIFI_MODE_FLAG)) {
-      not_handled = 0;
-      on_successfully_receive_general_actions(GET_CURRENT_DEFAULT_WIFI_MODE_FLAG);
+      reset_flag(&sent_flag_g, GET_CURRENT_DEFAULT_WIFI_MODE_FLAG);
 
-      if (!is_usart_response_contains_element(ESP8226_RESPONSE_WIFI_STATION_MODE)) {
-         add_piped_task_to_send_into_head(SET_DEFAULT_STATION_WIFI_MODE_FLAG);
+      if (is_usart_response_contains_element(ESP8226_RESPONSE_WIFI_MODE_PREFIX)) {
+         on_successfully_receive_general_actions();
+
+         if (!is_usart_response_contains_element(ESP8226_RESPONSE_WIFI_STATION_MODE)) {
+            add_piped_task_to_send_into_head(SET_DEFAULT_STATION_WIFI_MODE_FLAG);
+         }
+      } else {
+         add_error();
       }
    }
    return not_handled;
@@ -776,10 +765,13 @@ unsigned char handle_set_default_station_wifi_mode_flag(unsigned int current_pip
       schedule_function_resending(set_default_wifi_mode, 2, EXECUTE_FUNCTION_IMMEDIATELY);
    } else if (read_flag(sent_flag, SET_DEFAULT_STATION_WIFI_MODE_FLAG)) {
       not_handled = 0;
-      set_appropriate_successfully_recieved_flag_general_action(SET_DEFAULT_STATION_WIFI_MODE_FLAG, USART_OK);
-   } else if (read_flag(&successfully_received_flags_g, SET_DEFAULT_STATION_WIFI_MODE_FLAG)) {
-      not_handled = 0;
-      on_successfully_receive_general_actions(SET_DEFAULT_STATION_WIFI_MODE_FLAG);
+      reset_flag(&sent_flag_g, SET_DEFAULT_STATION_WIFI_MODE_FLAG);
+
+      if (is_usart_response_contains_element(USART_OK)) {
+         on_successfully_receive_general_actions();
+      } else {
+         add_error();
+      }
    }
    return not_handled;
 }
@@ -794,19 +786,15 @@ unsigned char handle_get_own_ip_address_flag(unsigned int current_piped_task_to_
       not_handled = 0;
       reset_flag(&sent_flag_g, GET_OWN_IP_ADDRESS_FLAG);
 
-      if (is_usart_response_contains_element(ESP8226_OWN_IP_ADDRESS) ||
-            is_usart_response_contains_element(ESP8226_RESPONSE_CURRENT_OWN_IP_ADDRESS_PREFIX)) {
-         set_flag(&successfully_received_flags_g, GET_OWN_IP_ADDRESS_FLAG);
+      if (is_usart_response_contains_element(ESP8226_OWN_IP_ADDRESS) || is_usart_response_contains_element(ESP8226_RESPONSE_CURRENT_OWN_IP_ADDRESS_PREFIX)) {
+         on_successfully_receive_general_actions();
+
+         unsigned char some_another_ip = !is_usart_response_contains_element(ESP8226_OWN_IP_ADDRESS);
+         if (some_another_ip) {
+            add_piped_task_to_send_into_head(SET_OWN_IP_ADDRESS_FLAG);
+         }
       } else {
          add_error();
-      }
-   } else if (read_flag(&successfully_received_flags_g, GET_OWN_IP_ADDRESS_FLAG)) {
-      not_handled = 0;
-      on_successfully_receive_general_actions(GET_OWN_IP_ADDRESS_FLAG);
-
-      unsigned char some_another_ip = !is_usart_response_contains_element(ESP8226_OWN_IP_ADDRESS);
-      if (some_another_ip) {
-         add_piped_task_to_send_into_head(SET_OWN_IP_ADDRESS_FLAG);
       }
    }
    return not_handled;
@@ -820,10 +808,13 @@ unsigned char handle_set_own_ip_address_flag(unsigned int current_piped_task_to_
       schedule_function_resending(set_own_ip_address, 2, EXECUTE_FUNCTION_IMMEDIATELY);
    } else if (read_flag(sent_flag, SET_OWN_IP_ADDRESS_FLAG)) {
       not_handled = 0;
-      set_appropriate_successfully_recieved_flag_general_action(SET_OWN_IP_ADDRESS_FLAG, USART_OK);
-   } else if (read_flag(&successfully_received_flags_g, SET_OWN_IP_ADDRESS_FLAG)) {
-      not_handled = 0;
-      on_successfully_receive_general_actions(SET_OWN_IP_ADDRESS_FLAG);
+      reset_flag(&sent_flag_g, SET_OWN_IP_ADDRESS_FLAG);
+
+      if (is_usart_response_contains_element(USART_OK)) {
+         on_successfully_receive_general_actions();
+      } else {
+         add_error();
+      }
    }
    return not_handled;
 }
@@ -837,10 +828,7 @@ unsigned char handle_close_connection_flag(unsigned int current_piped_task_to_se
    } else if (read_flag(sent_flag, CLOSE_CONNECTION_FLAG)) {
       not_handled = 0;
       reset_flag(&sent_flag_g, CLOSE_CONNECTION_FLAG);
-      set_flag(&successfully_received_flags_g, CLOSE_CONNECTION_FLAG);
-   } else if (read_flag(&successfully_received_flags_g, CLOSE_CONNECTION_FLAG)) {
-      not_handled = 0;
-      on_successfully_receive_general_actions(CLOSE_CONNECTION_FLAG);
+      on_successfully_receive_general_actions();
    }
    return not_handled;
 }
@@ -873,21 +861,24 @@ unsigned char handle_get_server_availability_request_flag(unsigned int current_p
          // Sometimes only "SEND OK" is received. Another data will be received later
          clear_usart_data_received_buffer();
       } else {
-         set_appropriate_successfully_recieved_flag_general_action(GET_SERVER_AVAILABILITY_REQUEST_FLAG, ESP8226_RESPONSE_OK_STATUS_CODE);
-      }
-   } else if (read_flag(&successfully_received_flags_g, GET_SERVER_AVAILABILITY_REQUEST_FLAG)) {
-      not_handled = 0;
-      on_successfully_receive_general_actions(GET_SERVER_AVAILABILITY_REQUEST_FLAG);
+         reset_flag(&sent_flag_g, GET_SERVER_AVAILABILITY_REQUEST_FLAG);
 
-      if (is_usart_response_contains_element(SERVER_STATUS_INCLUDE_DEBUG_INFO)) {
-         set_flag(&general_flags_g, SEND_DEBUG_INFO_FLAG);
-      } else {
-         reset_flag(&general_flags_g, SEND_DEBUG_INFO_FLAG);
-      }
+         if (is_usart_response_contains_element(ESP8226_RESPONSE_OK_STATUS_CODE)) {
+            on_successfully_receive_general_actions();
 
-      // Reset counter to send the next request in the time interval starting from the received time
-      checking_connection_status_and_server_availability_timer_g = TIMER14_30S;
-      set_flag(&general_flags_g, SERVER_IS_AVAILABLE_FLAG);
+            if (is_usart_response_contains_element(SERVER_STATUS_INCLUDE_DEBUG_INFO)) {
+               set_flag(&general_flags_g, SEND_DEBUG_INFO_FLAG);
+            } else {
+               reset_flag(&general_flags_g, SEND_DEBUG_INFO_FLAG);
+            }
+
+            // Reset counter to send the next request in the time interval starting from the received time
+            checking_connection_status_and_server_availability_timer_g = TIMER14_30S;
+            set_flag(&general_flags_g, SERVER_IS_AVAILABLE_FLAG);
+         } else {
+            add_error();
+         }
+      }
    }
    return not_handled;
 }
@@ -918,12 +909,15 @@ unsigned char handle_send_alarm_request_flag(unsigned int current_piped_task_to_
          // Sometimes only "SEND OK" is received. Another data will be received later
          clear_usart_data_received_buffer();
       } else {
-         set_appropriate_successfully_recieved_flag_general_action(SEND_ALARM_REQUEST_FLAG, ESP8226_RESPONSE_OK_STATUS_CODE);
+         reset_flag(&sent_flag_g, SEND_ALARM_REQUEST_FLAG);
+
+         if (is_usart_response_contains_element(ESP8226_RESPONSE_OK_STATUS_CODE)) {
+            on_successfully_receive_general_actions();
+            set_flag(&general_flags_g, SERVER_IS_AVAILABLE_FLAG);
+         } else {
+            add_error();
+         }
       }
-   } else if (read_flag(&successfully_received_flags_g, SEND_ALARM_REQUEST_FLAG)) {
-      not_handled = 0;
-      on_successfully_receive_general_actions(SEND_ALARM_REQUEST_FLAG);
-      set_flag(&general_flags_g, SERVER_IS_AVAILABLE_FLAG);
    }
    return not_handled;
 }
@@ -954,12 +948,15 @@ unsigned char handle_send_immobilizer_activated_request_flag(unsigned int curren
          // Sometimes only "SEND OK" is received. Another data will be received later
          clear_usart_data_received_buffer();
       } else {
-         set_appropriate_successfully_recieved_flag_general_action(SEND_IMMOBILIZER_ACTIVATED_REQUEST_FLAG, ESP8226_RESPONSE_OK_STATUS_CODE);
+         reset_flag(&sent_flag_g, SEND_IMMOBILIZER_ACTIVATED_REQUEST_FLAG);
+
+         if (is_usart_response_contains_element(ESP8226_RESPONSE_OK_STATUS_CODE)) {
+            on_successfully_receive_general_actions();
+            set_flag(&general_flags_g, IMMOBILIZER_ACTIVATED_SERVER_RECEIVED_FLAG);
+         } else {
+            add_error();
+         }
       }
-   } else if (read_flag(&successfully_received_flags_g, SEND_IMMOBILIZER_ACTIVATED_REQUEST_FLAG)) {
-      not_handled = 0;
-      on_successfully_receive_general_actions(SEND_IMMOBILIZER_ACTIVATED_REQUEST_FLAG);
-      set_flag(&general_flags_g, IMMOBILIZER_ACTIVATED_SERVER_RECEIVED_FLAG);
    }
    return not_handled;
 }
@@ -972,11 +969,14 @@ unsigned char handle_get_visible_network_list_flag(unsigned int current_piped_ta
       schedule_function_resending(get_network_list, 20, EXECUTE_FUNCTION_IMMEDIATELY);
    } else if (read_flag(sent_flag, GET_VISIBLE_NETWORK_LIST_FLAG)) {
       not_handled = 0;
-      set_appropriate_successfully_recieved_flag_general_action(GET_VISIBLE_NETWORK_LIST_FLAG, ESP8226_RESPONSE_VISIBLE_NETWORK_LIST_PREFIX);
-   } else if (read_flag(&successfully_received_flags_g, GET_VISIBLE_NETWORK_LIST_FLAG)) {
-      not_handled = 0;
-      on_successfully_receive_general_actions(GET_VISIBLE_NETWORK_LIST_FLAG);
-      //save_default_access_point_gain();
+      reset_flag(&sent_flag_g, GET_VISIBLE_NETWORK_LIST_FLAG);
+
+      if (is_usart_response_contains_element(ESP8226_RESPONSE_VISIBLE_NETWORK_LIST_PREFIX)) {
+         on_successfully_receive_general_actions();
+         save_default_access_point_gain();
+      } else {
+         add_error();
+      }
    }
    return not_handled;
 }
@@ -997,7 +997,6 @@ void reset_device_state() {
    }
 
    general_flags_g = 0;
-   successfully_received_flags_g = 0;
    sent_flag_g = 0;
    send_usart_data_errors_counter_g = 0;
 
@@ -1079,6 +1078,7 @@ void beep(unsigned char *beeper_counter, unsigned char activate_beeper, unsigned
 void check_connection_status_and_server_availability(unsigned short *counter) {
    if (*counter == 0 && is_piped_tasks_scheduler_empty()) {
       *counter = TIMER14_30S;
+      add_piped_task_to_send_into_tail(GET_VISIBLE_NETWORK_LIST_FLAG);
       add_piped_task_to_send_into_tail(GET_CONNECTION_STATUS_FLAG);
       add_piped_task_to_send_into_tail(GET_SERVER_AVAILABILITY_FLAG);
    }
@@ -1089,16 +1089,6 @@ void schedule_global_function_resending_and_send_request(unsigned int flag) {
    schedule_function_resending(resend_usart_get_request_using_global_final_task, 10, DO_NOT_EXECUTE_FUNCTION_IMMEDIATELY);
 
    send_request(flag);
-}
-
-void set_appropriate_successfully_recieved_flag_general_action(unsigned int flag_value, char to_be_contained_in_response[]) {
-   reset_flag(&sent_flag_g, flag_value);
-
-   if (is_usart_response_contains_element(to_be_contained_in_response)) {
-      set_flag(&successfully_received_flags_g, flag_value);
-   } else {
-      add_error();
-   }
 }
 
 void add_error() {
