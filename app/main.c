@@ -26,7 +26,7 @@
 #define MOTION_SENSOR_EXTI_PORT_SOURCE EXTI_PortSourceGPIOB
 #define MOTION_SENSOR_EXTI_LINE EXTI_Line0
 #define MOTION_SENSOR_NVIC_IRQChannel EXTI0_1_IRQn
-#define ESP8266_CONTROL_PIN GPIO_Pin_12
+#define ESP8266_CONTROL_PIN GPIO_Pin_15
 #define ESP8266_CONTROL_PORT GPIOA
 #define BEEPER_PIN GPIO_Pin_7
 #define BEEPER_PORT GPIOA
@@ -38,6 +38,10 @@
 #define IMMOBILIZER_RELAY_NVIC_IRQChannel EXTI4_15_IRQn
 #define IMMOBILIZER_ENABLE_PORT GPIOB
 #define IMMOBILIZER_ENABLE_PIN GPIO_Pin_7
+#define PIR_LED_OUT_PIN GPIO_Pin_11
+#define PIR_LED_OUT_PORT GPIOA
+#define MW_LED_OUT_PIN GPIO_Pin_12
+#define MW_LED_OUT_PORT GPIOA
 
 // General flags
 #define USART_DATA_RECEIVED_FLAG 1
@@ -50,7 +54,7 @@
 #define BEEPER_ACTIVATED_SERVER_RECEIVED_AFTER_PAUSE_FLAG 128
 #define SEND_DEBUG_INFO_FLAG 256
 #define IMMOBILIZER_RELAY_FLAG 512
-// To be added some flag
+#define IMMOBILIZER_ACTIVATED_AFTER_TURNED_ON 1024
 #define IMMOBILIZER_ACTIVATED_SERVER_RECEIVED_FLAG 2048
 
 #define GET_VISIBLE_NETWORK_LIST_FLAG 1
@@ -97,12 +101,10 @@
 #define TIMER14_2S 20
 #define TIMER14_3S 30
 #define TIMER14_5S 50
-#define TIMER14_10S 100
-#define TIMER14_30S 300
-#define TIMER14_60S 600
-#define TIMER14_2MIN 1200
-#define TIMER14_3MIN 1800
-#define TIMER14_10MIN 6000
+#define TIMER14_10S 102
+#define TIMER14_30S 305
+#define TIMER14_60S 610
+#define TIMER14_10MIN 6103
 
 typedef enum {
    EXECUTE_FUNCTION_IMMEDIATELY,
@@ -222,7 +224,7 @@ unsigned char handle_send_immobilizer_activated_flag(unsigned int current_piped_
 unsigned char handle_send_immobilizer_activated_request_flag(unsigned int current_piped_task_to_send, unsigned int *sent_flag);
 unsigned char handle_get_visible_network_list_flag(unsigned int current_piped_task_to_send, unsigned int *sent_flag);
 void reset_device_state();
-void beep(unsigned char *beeper_counter, unsigned char activate_beeper, unsigned char server_received_ack, void (*on_server_received)());
+void beep_twice(unsigned char *beeper_counter, unsigned char activate_beeper, unsigned char server_received_ack, void (*on_server_received)());
 void turn_beeper_on();
 void turn_beeper_off();
 void set_flag(unsigned int *flags, unsigned int flag_value);
@@ -358,7 +360,7 @@ void EXTI0_1_IRQHandler() {
       EXTI_ClearITPendingBit(MOTION_SENSOR_EXTI_LINE);
 
       if (!inactive_alarm_trigger_timer_g) {
-         if (!GPIO_ReadInputDataBit(MOTION_SENSOR_INPUT_PORT, MOTION_SENSOR_INPUT_PIN)) {
+         if (GPIO_ReadInputDataBit(MOTION_SENSOR_INPUT_PORT, MOTION_SENSOR_INPUT_PIN)) {
             //GPIO_WriteBit(MOTION_SENSOR_LED_PORT, MOTION_SENSOR_LED_PIN, Bit_SET);
 
             set_flag(&general_flags_g, ALARM_FLAG);
@@ -558,11 +560,18 @@ int main() {
          if (!is_immobilizer_enabled() && !immobilizer_inactivity_timer_g) {
             enable_immobilizer();
          }
-         if (is_immobilizer_enabled() && is_immobilizer_relay_status_ready_to_be_read()) {
-            if (GPIO_ReadInputDataBit(IMMOBILIZER_RELAY_PORT, IMMOBILIZER_RELAY_PIN)) {
+         if (!read_flag(&general_flags_g, IMMOBILIZER_ACTIVATED_AFTER_TURNED_ON) && is_immobilizer_relay_status_ready_to_be_read()) {
+            if (GPIO_ReadInputDataBit(IMMOBILIZER_RELAY_PORT, IMMOBILIZER_RELAY_PIN) && is_immobilizer_enabled()) {
+               // Handle a case when immobilizer relay disconnects GND (there is pull-up resistor on the pin)
+               set_flag(&general_flags_g, IMMOBILIZER_ACTIVATED_AFTER_TURNED_ON);
+            }
+            reset_immobilizer_relay_status();
+         }
+         if (is_immobilizer_enabled() && is_immobilizer_relay_status_ready_to_be_read() && read_flag(&general_flags_g, IMMOBILIZER_ACTIVATED_AFTER_TURNED_ON)) {
+            if (!GPIO_ReadInputDataBit(IMMOBILIZER_RELAY_PORT, IMMOBILIZER_RELAY_PIN)) {
                add_piped_task_to_send_into_tail(SEND_IMMOBILIZER_ACTIVATED_FLAG);
                activate_beeper = 1;
-               immobilizer_inactivity_timer_g = TIMER14_5S; // Will be restored after 30s + this value
+               immobilizer_inactivity_timer_g = TIMER14_10S; // Will be restored after 30s + this value
                disable_immobilizer();
                GPIO_WriteBit(SERVER_AVAILABILITI_LED_PORT, SERVER_AVAILABILITI_LED_PIN, Bit_SET);
             } else {
@@ -576,7 +585,7 @@ int main() {
             reset_flag(&general_flags_g, ALARM_FLAG);
          }
 
-         beep(&beeper_counter, activate_beeper, read_flag(&general_flags_g, IMMOBILIZER_ACTIVATED_SERVER_RECEIVED_FLAG), reset_immobilizer_activated_server_received_flag);
+         beep_twice(&beeper_counter, activate_beeper, read_flag(&general_flags_g, IMMOBILIZER_ACTIVATED_SERVER_RECEIVED_FLAG), reset_immobilizer_activated_server_received_flag);
       } else if (esp8266_disabled_counter_g >= TIMER14_1S) {
          esp8266_disabled_counter_g = 0;
          enable_esp8266();
@@ -1020,9 +1029,9 @@ void reset_device_state() {
    }
 }
 
-void beep(unsigned char *beeper_counter, unsigned char activate_beeper, unsigned char server_received_ack, void (*on_server_received)()) {
+void beep_twice(unsigned char *beeper_counter, unsigned char activate_beeper, unsigned char server_received_ack, void (*on_server_received)()) {
    if (activate_beeper && !beeper_inactive_timer_g) {
-      beeper_inactive_timer_g = TIMER14_60S;
+      beeper_inactive_timer_g = TIMER14_30S;
       *beeper_counter = 1;
       set_flag(&general_flags_g, BEEPER_ACTIVATED_AFTER_PAUSE_FLAG);
       set_flag(&general_flags_g, BEEPER_ACTIVATED_SERVER_RECEIVED_AFTER_PAUSE_FLAG);
@@ -1440,14 +1449,16 @@ void *get_received_usart_error_data() {
    for (unsigned char i = 0; i < received_data_length; i++) {
       char received_char = usart_data_received_buffer_g[i];
 
-      if (received_char == '\r') {
-         received_char = 'r';
-      } else if (received_char == '\n') {
-         received_char = 'n';
-      } else if (received_char == '\"') {
-         received_char = '\'';
-      } else if (received_char < ' ') {
-         received_char += 65; // Starts from 'A'
+      if (received_char <= '\"') {
+         if (received_char == '\r') {
+            received_char = 'r';
+         } else if (received_char == '\n') {
+            received_char = 'n';
+         } else if (received_char == '\"') {
+            received_char = '\'';
+         } else {
+            received_char += 65; // Starts from 'A'
+         }
       }
       *(result_string + i) = received_char;
    }
@@ -1620,6 +1631,12 @@ void Pins_Config() {
    gpioInitType.GPIO_Pin = ESP8266_CONTROL_PIN;
    gpioInitType.GPIO_PuPd = GPIO_PuPd_NOPULL;
    GPIO_Init(ESP8266_CONTROL_PORT, &gpioInitType);
+
+   gpioInitType.GPIO_Pin = PIR_LED_OUT_PIN;
+   GPIO_Init(PIR_LED_OUT_PORT, &gpioInitType);
+
+   gpioInitType.GPIO_Pin = MW_LED_OUT_PIN;
+   GPIO_Init(MW_LED_OUT_PORT, &gpioInitType);
 }
 
 /**
@@ -1645,7 +1662,7 @@ void TIMER3_Confing() {
 }
 
 /**
- * 0.1s with 16MHz clock
+ * 0.0983s with 16MHz clock
  */
 void TIMER14_Confing() {
    DBGMCU_APB1PeriphConfig(DBGMCU_TIM14_STOP, ENABLE);
@@ -1993,6 +2010,7 @@ void disable_esp8266() {
 
 void disable_immobilizer() {
    GPIO_WriteBit(IMMOBILIZER_ENABLE_PORT, IMMOBILIZER_ENABLE_PIN, Bit_RESET);
+   reset_flag(&general_flags_g, IMMOBILIZER_ACTIVATED_AFTER_TURNED_ON);
 }
 
 void enable_immobilizer() {
