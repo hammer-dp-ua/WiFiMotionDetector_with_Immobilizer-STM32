@@ -38,10 +38,18 @@
 #define IMMOBILIZER_RELAY_NVIC_IRQChannel EXTI4_15_IRQn
 #define IMMOBILIZER_ENABLE_PORT GPIOB
 #define IMMOBILIZER_ENABLE_PIN GPIO_Pin_7
-#define PIR_LED_OUT_PIN GPIO_Pin_11
+#define PIR_LED_OUT_PIN GPIO_Pin_11 // Green
 #define PIR_LED_OUT_PORT GPIOA
-#define MW_LED_OUT_PIN GPIO_Pin_12
+#define PIR_LED_OUT_EXTI_PIN_SOURCE EXTI_PinSource11
+#define PIR_LED_OUT_EXTI_PORT_SOURCE EXTI_PortSourceGPIOA
+#define PIR_LED_OUT_EXTI_LINE EXTI_Line11
+#define PIR_LED_OUT_NVIC_IRQChannel EXTI4_15_IRQn
+#define MW_LED_OUT_PIN GPIO_Pin_12 // Yellow
 #define MW_LED_OUT_PORT GPIOA
+#define MW_LED_OUT_EXTI_PIN_SOURCE EXTI_PinSource12
+#define MW_LED_OUT_EXTI_PORT_SOURCE EXTI_PortSourceGPIOA
+#define MW_LED_OUT_EXTI_LINE EXTI_Line12
+#define MW_LED_OUT_NVIC_IRQChannel EXTI4_15_IRQn
 
 // General flags
 #define USART_DATA_RECEIVED_FLAG 1
@@ -56,6 +64,8 @@
 #define IMMOBILIZER_RELAY_FLAG 512
 #define IMMOBILIZER_ACTIVATED_AFTER_TURNED_ON 1024
 #define IMMOBILIZER_ACTIVATED_SERVER_RECEIVED_FLAG 2048
+#define PIR_ACTIVATED_FLAG 4096
+#define MW_ACTIVATED_FLAG 8192
 
 #define GET_VISIBLE_NETWORK_LIST_FLAG 1
 #define DISABLE_ECHO_FLAG 2
@@ -79,6 +89,10 @@
 #define SEND_ALARM_REQUEST_FLAG 524288
 #define SEND_IMMOBILIZER_ACTIVATED_FLAG 1048576
 #define SEND_IMMOBILIZER_ACTIVATED_REQUEST_FLAG 2097152
+#define SEND_FALSE_PIR_ALARM_FLAG 4194304
+#define SEND_FALSE_PIR_ALARM_REQUEST_FLAG 8388608
+#define SEND_FALSE_MW_ALARM_FLAG 16777216
+#define SEND_FALSE_MW_ALARM_REQUEST_FLAG 33554432
 
 #define USART_DATA_RECEIVED_BUFFER_SIZE 1000
 #define PIPED_REQUEST_COMMANDS_TO_SEND_SIZE 3
@@ -155,6 +169,8 @@ char STATUS_JSON[] __attribute__ ((section(".text.const"))) = "{\"gain\":\"<1>\"
 char ESP8226_RESPONSE_OK_STATUS_CODE[] __attribute__ ((section(".text.const"))) = "\"statusCode\":\"OK\"";
 char ESP8226_REQUEST_SEND_ALARM[] __attribute__ ((section(".text.const"))) =
       "GET /server/esp8266/alarm HTTP/1.1\r\nHost: <1>\r\nUser-Agent: ESP8266\r\nAccept: application/json\r\nConnection: keep-alive\r\n\r\n";
+char ESP8226_REQUEST_SEND_FALSE_ALARM[] __attribute__ ((section(".text.const"))) =
+      "GET /server/esp8266/falseAlarm?alarmSource=<1> HTTP/1.1\r\nHost: <2>\r\nUser-Agent: ESP8266\r\nAccept: application/json\r\nConnection: keep-alive\r\n\r\n";
 char ESP8226_REQUEST_SEND_IMMOBILIZER_ACTIVATION[] __attribute__ ((section(".text.const"))) =
       "GET /server/esp8266/immobilizerActivated HTTP/1.1\r\nHost: <1>\r\nUser-Agent: ESP8266\r\nAccept: application/json\r\nConnection: keep-alive\r\n\r\n";
 char ESP8226_RESPONSE_HTTP_STATUS_200_OK[] __attribute__ ((section(".text.const"))) = "200 OK";
@@ -164,6 +180,8 @@ char JSON_OBJECT_PREFIX[] __attribute__ ((section(".text.const"))) = "{";
 char RESPONSE_CLOSED_BY_TOMCAT[] __attribute__ ((section(".text.const"))) = "\r\n+IPD,5:0\r\n\r\nCLOSED\r\n";
 char RESPONSE_CLOSED_BY_TOMCAT_PREFIX[] __attribute__ ((section(".text.const"))) = "\r\n+IPD,5:0";
 char RESPONSE_CLOSED_BY_TOMCAT_SUFFIX[] __attribute__ ((section(".text.const"))) = "CLOSED\r\n";
+char PIR_SENSOR[] __attribute__ ((section(".text.const"))) = "PIR+sensor"; // "+" is encoded space symbol
+char MICROWAVE_SENSOR[] __attribute__ ((section(".text.const"))) = "microwave+sensor";
 
 char *usart_data_to_be_transmitted_buffer_g = NULL;
 char *received_usart_error_data_g = NULL;
@@ -192,6 +210,8 @@ volatile unsigned char beeper_alarm_prior_to_response_period_timer_g;
 volatile unsigned char inactive_alarm_trigger_timer_g;
 volatile unsigned char resets_occured_g;
 volatile unsigned short immobilizer_inactivity_timer_g;
+volatile unsigned short false_pir_alarm_timer_g;
+volatile unsigned short false_mw_alarm_timer_g;
 
 volatile unsigned short usart_overrun_errors_counter_g;
 volatile unsigned short usart_idle_line_detection_counter_g;
@@ -220,6 +240,9 @@ unsigned char handle_get_server_availability_flag(unsigned int current_piped_tas
 unsigned char handle_get_server_availability_request_flag(unsigned int current_piped_task_to_send, unsigned int *sent_flag);
 unsigned char handle_send_alarm_flag(unsigned int current_piped_task_to_send);
 unsigned char handle_send_alarm_request_flag(unsigned int current_piped_task_to_send, unsigned int *sent_flag);
+unsigned char handle_send_false_alarm_flags(unsigned int current_piped_task_to_send);
+unsigned char handle_send_false_pir_alarm_request_flag(unsigned int current_piped_task_to_send, unsigned int *sent_flag);
+unsigned char handle_send_false_mw_alarm_request_flag(unsigned int current_piped_task_to_send, unsigned int *sent_flag);
 unsigned char handle_send_immobilizer_activated_flag(unsigned int current_piped_task_to_send);
 unsigned char handle_send_immobilizer_activated_request_flag(unsigned int current_piped_task_to_send, unsigned int *sent_flag);
 unsigned char handle_get_visible_network_list_flag(unsigned int current_piped_task_to_send, unsigned int *sent_flag);
@@ -278,6 +301,8 @@ unsigned char is_piped_tasks_scheduler_empty();
 void schedule_global_function_resending_and_send_request(unsigned int flag);
 void get_server_avalability(unsigned int request_task);
 void send_alarm(unsigned int request_task);
+void send_false_pir_alarm(unsigned int request_task);
+void send_false_mw_alarm(unsigned int request_task);
 void send_immobilizer_activity(unsigned int request_task);
 void get_own_ip_address();
 void set_own_ip_address();
@@ -336,6 +361,12 @@ void TIM14_IRQHandler() {
    if (immobilizer_inactivity_timer_g) {
       immobilizer_inactivity_timer_g--;
    }
+   if (false_pir_alarm_timer_g) {
+      false_pir_alarm_timer_g--;
+   }
+   if (false_mw_alarm_timer_g) {
+      false_mw_alarm_timer_g--;
+   }
 }
 
 void TIM3_IRQHandler() {
@@ -376,6 +407,18 @@ void EXTI4_15_IRQHandler() {
    if (EXTI_GetITStatus(IMMOBILIZER_RELAY_EXTI_LINE)) {
       EXTI_ClearITPendingBit(IMMOBILIZER_RELAY_EXTI_LINE);
       start_immobilizer_relay_anti_jitter_timer();
+   } else if (EXTI_GetITStatus(PIR_LED_OUT_EXTI_LINE)) {
+      EXTI_ClearITPendingBit(PIR_LED_OUT_EXTI_LINE);
+      if (!GPIO_ReadInputDataBit(PIR_LED_OUT_PORT, PIR_LED_OUT_PIN)) {
+         set_flag(&general_flags_g, PIR_ACTIVATED_FLAG);
+         false_pir_alarm_timer_g = TIMER14_5S;
+      }
+   } else if (EXTI_GetITStatus(MW_LED_OUT_EXTI_LINE)) {
+      EXTI_ClearITPendingBit(MW_LED_OUT_EXTI_LINE);
+      if (!GPIO_ReadInputDataBit(MW_LED_OUT_PORT, MW_LED_OUT_PIN)) {
+         set_flag(&general_flags_g, MW_ACTIVATED_FLAG);
+         false_mw_alarm_timer_g = TIMER14_5S;
+      }
    }
 }
 
@@ -523,6 +566,15 @@ int main() {
             if (not_handled) {
                not_handled = handle_get_visible_network_list_flag(current_piped_task_to_send, &sent_flag);
             }
+            if (not_handled) {
+               not_handled = handle_send_false_alarm_flags(current_piped_task_to_send);
+            }
+            if (not_handled) {
+               not_handled = handle_send_false_pir_alarm_request_flag(current_piped_task_to_send, &sent_flag);
+            }
+            if (not_handled) {
+               not_handled = handle_send_false_mw_alarm_request_flag(current_piped_task_to_send, &sent_flag);
+            }
          }
 
          check_connection_status_and_server_availability(&checking_connection_status_and_server_availability_timer_g);
@@ -544,9 +596,9 @@ int main() {
             reset_flag(&general_flags_g, SERVER_IS_AVAILABLE_FLAG);
          }
          if (read_flag(&general_flags_g, SERVER_IS_AVAILABLE_FLAG)) {
-            //GPIO_WriteBit(SERVER_AVAILABILITI_LED_PORT, SERVER_AVAILABILITI_LED_PIN, Bit_SET);
+            GPIO_WriteBit(SERVER_AVAILABILITI_LED_PORT, SERVER_AVAILABILITI_LED_PIN, Bit_SET);
          } else {
-            //GPIO_WriteBit(SERVER_AVAILABILITI_LED_PORT, SERVER_AVAILABILITI_LED_PIN, Bit_RESET);
+            GPIO_WriteBit(SERVER_AVAILABILITI_LED_PORT, SERVER_AVAILABILITI_LED_PIN, Bit_RESET);
          }
 
          if (send_usart_data_errors_counter_g >= 5 || is_piped_tasks_scheduler_full()) {
@@ -573,9 +625,6 @@ int main() {
                activate_beeper = 1;
                immobilizer_inactivity_timer_g = TIMER14_10S; // Will be restored after 30s + this value
                disable_immobilizer();
-               GPIO_WriteBit(SERVER_AVAILABILITI_LED_PORT, SERVER_AVAILABILITI_LED_PIN, Bit_SET);
-            } else {
-               GPIO_WriteBit(SERVER_AVAILABILITI_LED_PORT, SERVER_AVAILABILITI_LED_PIN, Bit_RESET);
             }
             reset_immobilizer_relay_status();
          }
@@ -583,6 +632,16 @@ int main() {
          if (read_flag(&general_flags_g, ALARM_FLAG) && is_piped_tasks_scheduler_empty()) {
             add_piped_task_to_send_into_tail(SEND_ALARM_FLAG);
             reset_flag(&general_flags_g, ALARM_FLAG);
+            reset_flag(&general_flags_g, PIR_ACTIVATED_FLAG);
+            reset_flag(&general_flags_g, MW_ACTIVATED_FLAG);
+         }
+         if (read_flag(&general_flags_g, PIR_ACTIVATED_FLAG) && !false_pir_alarm_timer_g) {
+            reset_flag(&general_flags_g, PIR_ACTIVATED_FLAG);
+            add_piped_task_to_send_into_tail(SEND_FALSE_PIR_ALARM_FLAG);
+         }
+         if (read_flag(&general_flags_g, MW_ACTIVATED_FLAG) && !false_mw_alarm_timer_g) {
+            reset_flag(&general_flags_g, MW_ACTIVATED_FLAG);
+            add_piped_task_to_send_into_tail(SEND_FALSE_MW_ALARM_FLAG);
          }
 
          beep_twice(&beeper_counter, activate_beeper, read_flag(&general_flags_g, IMMOBILIZER_ACTIVATED_SERVER_RECEIVED_FLAG), reset_immobilizer_activated_server_received_flag);
@@ -942,6 +1001,75 @@ unsigned char handle_send_alarm_request_flag(unsigned int current_piped_task_to_
    return not_handled;
 }
 
+unsigned char handle_send_false_alarm_flags(unsigned int current_piped_task_to_send) {
+   unsigned char not_handled = 1;
+
+   if (current_piped_task_to_send == SEND_FALSE_PIR_ALARM_FLAG) {
+      not_handled = 0;
+      // Request 1 part. Preparation
+      delete_piped_task(SEND_FALSE_PIR_ALARM_FLAG);
+      send_false_pir_alarm(SEND_FALSE_PIR_ALARM_REQUEST_FLAG);
+   } else if (current_piped_task_to_send == SEND_FALSE_MW_ALARM_FLAG) {
+      not_handled = 0;
+      // Request 1 part. Preparation
+      delete_piped_task(SEND_FALSE_MW_ALARM_FLAG);
+      send_false_mw_alarm(SEND_FALSE_MW_ALARM_REQUEST_FLAG);
+   }
+   return not_handled;
+}
+
+unsigned char handle_send_false_pir_alarm_request_flag(unsigned int current_piped_task_to_send, unsigned int *sent_flag) {
+   unsigned char not_handled = 1;
+
+   if (current_piped_task_to_send == SEND_FALSE_PIR_ALARM_REQUEST_FLAG) {
+      not_handled = 0;
+      // Part 2
+      schedule_global_function_resending_and_send_request(SEND_FALSE_PIR_ALARM_REQUEST_FLAG);
+   } else if (read_flag(sent_flag, SEND_FALSE_PIR_ALARM_REQUEST_FLAG)) {
+      not_handled = 0;
+
+      if (is_usart_response_contains_element(ESP8226_RESPONSE_SUCCSESSFULLY_SENT) && !is_usart_response_contains_element(ESP8226_RESPONSE_OK_STATUS_CODE)) {
+         // Sometimes only "SEND OK" is received. Another data will be received later
+         clear_usart_data_received_buffer();
+      } else {
+         reset_flag(&sent_flag_g, SEND_FALSE_PIR_ALARM_REQUEST_FLAG);
+
+         if (is_usart_response_contains_element(ESP8226_RESPONSE_OK_STATUS_CODE)) {
+            on_successfully_receive_general_actions();
+         } else {
+            add_error();
+         }
+      }
+   }
+   return not_handled;
+}
+
+unsigned char handle_send_false_mw_alarm_request_flag(unsigned int current_piped_task_to_send, unsigned int *sent_flag) {
+   unsigned char not_handled = 1;
+
+   if (current_piped_task_to_send == SEND_FALSE_MW_ALARM_REQUEST_FLAG) {
+      not_handled = 0;
+      // Part 2
+      schedule_global_function_resending_and_send_request(SEND_FALSE_MW_ALARM_REQUEST_FLAG);
+   } else if (read_flag(sent_flag, SEND_FALSE_MW_ALARM_REQUEST_FLAG)) {
+      not_handled = 0;
+
+      if (is_usart_response_contains_element(ESP8226_RESPONSE_SUCCSESSFULLY_SENT) && !is_usart_response_contains_element(ESP8226_RESPONSE_OK_STATUS_CODE)) {
+         // Sometimes only "SEND OK" is received. Another data will be received later
+         clear_usart_data_received_buffer();
+      } else {
+         reset_flag(&sent_flag_g, SEND_FALSE_MW_ALARM_REQUEST_FLAG);
+
+         if (is_usart_response_contains_element(ESP8226_RESPONSE_OK_STATUS_CODE)) {
+            on_successfully_receive_general_actions();
+         } else {
+            add_error();
+         }
+      }
+   }
+   return not_handled;
+}
+
 unsigned char handle_send_immobilizer_activated_flag(unsigned int current_piped_task_to_send) {
    unsigned char not_handled = 1;
 
@@ -1175,6 +1303,20 @@ void get_server_avalability(unsigned int request_task) {
 
 void send_alarm(unsigned int request_task) {
    prepare_http_request_without_parameters(ESP8226_REQUEST_SEND_ALARM, request_task);
+}
+
+void send_false_pir_alarm(unsigned int request_task) {
+   char *parameters_for_request[] = {PIR_SENSOR, ESP8226_SERVER_IP_ADDRESS, NULL};
+   char *request = set_string_parameters(ESP8226_REQUEST_SEND_FALSE_ALARM, parameters_for_request);
+
+   prepare_http_request(ESP8226_SERVER_IP_ADDRESS, ESP8226_SERVER_PORT, request, NULL, request_task);
+}
+
+void send_false_mw_alarm(unsigned int request_task) {
+   char *parameters_for_request[] = {MICROWAVE_SENSOR, ESP8226_SERVER_IP_ADDRESS, NULL};
+   char *request = set_string_parameters(ESP8226_REQUEST_SEND_FALSE_ALARM, parameters_for_request);
+
+   prepare_http_request(ESP8226_SERVER_IP_ADDRESS, ESP8226_SERVER_PORT, request, NULL, request_task);
 }
 
 void send_immobilizer_activity(unsigned int request_task) {
@@ -1584,6 +1726,12 @@ void Pins_Config() {
    gpioInitType.GPIO_PuPd = GPIO_PuPd_NOPULL;
    GPIO_Init(IMMOBILIZER_RELAY_PORT, &gpioInitType);
 
+   gpioInitType.GPIO_Pin = PIR_LED_OUT_PIN;
+   GPIO_Init(PIR_LED_OUT_PORT, &gpioInitType);
+
+   gpioInitType.GPIO_Pin = MW_LED_OUT_PIN;
+   GPIO_Init(MW_LED_OUT_PORT, &gpioInitType);
+
    // For USART1
    gpioInitType.GPIO_Pin = GPIO_Pin_9 | GPIO_Pin_10;
    gpioInitType.GPIO_PuPd = GPIO_PuPd_NOPULL;
@@ -1599,9 +1747,9 @@ void Pins_Config() {
    GPIO_Init(GPIOB, &gpioInitType);
 
    // Motion sensor input
-   gpioInitType.GPIO_PuPd = GPIO_PuPd_DOWN;
-   gpioInitType.GPIO_Pin = MOTION_SENSOR_INPUT_PIN;
-   GPIO_Init(MOTION_SENSOR_INPUT_PORT, &gpioInitType);
+   //gpioInitType.GPIO_Pin = MOTION_SENSOR_INPUT_PIN;
+   //gpioInitType.GPIO_PuPd = GPIO_PuPd_NOPULL;
+   //GPIO_Init(MOTION_SENSOR_INPUT_PORT, &gpioInitType);
 
    // PA1 LED
    gpioInitType.GPIO_Pin = NETWORK_STATUS_LED_PIN;
@@ -1631,12 +1779,6 @@ void Pins_Config() {
    gpioInitType.GPIO_Pin = ESP8266_CONTROL_PIN;
    gpioInitType.GPIO_PuPd = GPIO_PuPd_NOPULL;
    GPIO_Init(ESP8266_CONTROL_PORT, &gpioInitType);
-
-   gpioInitType.GPIO_Pin = PIR_LED_OUT_PIN;
-   GPIO_Init(PIR_LED_OUT_PORT, &gpioInitType);
-
-   gpioInitType.GPIO_Pin = MW_LED_OUT_PIN;
-   GPIO_Init(MW_LED_OUT_PORT, &gpioInitType);
 }
 
 /**
@@ -1736,18 +1878,29 @@ void EXTERNAL_Interrupt_Config() {
    RCC_APB2PeriphClockCmd(RCC_APB2Periph_SYSCFG, ENABLE);
    SYSCFG_EXTILineConfig(MOTION_SENSOR_EXTI_PORT_SOURCE, MOTION_SENSOR_EXTI_PIN_SOURCE);
    SYSCFG_EXTILineConfig(IMMOBILIZER_RELAY_EXTI_PORT_SOURCE, IMMOBILIZER_RELAY_EXTI_PIN_SOURCE);
+   SYSCFG_EXTILineConfig(PIR_LED_OUT_EXTI_PORT_SOURCE, PIR_LED_OUT_EXTI_PIN_SOURCE);
+   SYSCFG_EXTILineConfig(MW_LED_OUT_EXTI_PORT_SOURCE, MW_LED_OUT_EXTI_PIN_SOURCE);
 
    EXTI_InitTypeDef EXTI_InitStructure;
    EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Interrupt;
    EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Rising_Falling;
    EXTI_InitStructure.EXTI_LineCmd = ENABLE;
-   EXTI_InitStructure.EXTI_Line = MOTION_SENSOR_EXTI_LINE | IMMOBILIZER_RELAY_EXTI_LINE;
+   EXTI_InitStructure.EXTI_Line = MOTION_SENSOR_EXTI_LINE | IMMOBILIZER_RELAY_EXTI_LINE | PIR_LED_OUT_EXTI_LINE | MW_LED_OUT_EXTI_LINE;
    EXTI_Init(&EXTI_InitStructure);
 
    NVIC_InitTypeDef NVIC_InitTypeInitStructure;
    NVIC_InitTypeInitStructure.NVIC_IRQChannelPriority = 3;
    NVIC_InitTypeInitStructure.NVIC_IRQChannelCmd = ENABLE;
-   NVIC_InitTypeInitStructure.NVIC_IRQChannel = MOTION_SENSOR_NVIC_IRQChannel | IMMOBILIZER_RELAY_NVIC_IRQChannel;
+   NVIC_InitTypeInitStructure.NVIC_IRQChannel = MOTION_SENSOR_NVIC_IRQChannel;
+   NVIC_Init(&NVIC_InitTypeInitStructure);
+
+   NVIC_InitTypeInitStructure.NVIC_IRQChannel = IMMOBILIZER_RELAY_NVIC_IRQChannel;
+   NVIC_Init(&NVIC_InitTypeInitStructure);
+
+   NVIC_InitTypeInitStructure.NVIC_IRQChannel = PIR_LED_OUT_NVIC_IRQChannel;
+   NVIC_Init(&NVIC_InitTypeInitStructure);
+
+   NVIC_InitTypeInitStructure.NVIC_IRQChannel = MW_LED_OUT_NVIC_IRQChannel;
    NVIC_Init(&NVIC_InitTypeInitStructure);
 }
 
