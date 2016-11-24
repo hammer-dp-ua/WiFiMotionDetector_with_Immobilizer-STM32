@@ -308,7 +308,8 @@ void get_own_ip_address();
 void set_own_ip_address();
 void close_connection();
 void add_error();
-void check_connection_status_and_server_availability(unsigned short *counter);
+void check_connection_status_and_server_availability();
+void check_visible_network_list();
 void add_piped_task_into_history(unsigned int task);
 unsigned int get_last_piped_task_in_history();
 void *get_received_usart_error_data();
@@ -577,7 +578,8 @@ int main() {
             }
          }
 
-         check_connection_status_and_server_availability(&checking_connection_status_and_server_availability_timer_g);
+         check_connection_status_and_server_availability();
+         check_visible_network_list();
 
          // LED blinking
          if (!read_flag(&general_flags_g, SUCCESSUFULLY_CONNECTED_TO_NETWORK_FLAG) && network_searching_status_led_counter_g >= TIMER3_100MS) {
@@ -635,11 +637,11 @@ int main() {
             reset_flag(&general_flags_g, PIR_ACTIVATED_FLAG);
             reset_flag(&general_flags_g, MW_ACTIVATED_FLAG);
          }
-         if (read_flag(&general_flags_g, PIR_ACTIVATED_FLAG) && !false_pir_alarm_timer_g) {
+         if (read_flag(&general_flags_g, PIR_ACTIVATED_FLAG) && !false_pir_alarm_timer_g && is_piped_tasks_scheduler_empty()) {
             reset_flag(&general_flags_g, PIR_ACTIVATED_FLAG);
             add_piped_task_to_send_into_tail(SEND_FALSE_PIR_ALARM_FLAG);
          }
-         if (read_flag(&general_flags_g, MW_ACTIVATED_FLAG) && !false_mw_alarm_timer_g) {
+         if (read_flag(&general_flags_g, MW_ACTIVATED_FLAG) && !false_mw_alarm_timer_g && is_piped_tasks_scheduler_empty()) {
             reset_flag(&general_flags_g, MW_ACTIVATED_FLAG);
             add_piped_task_to_send_into_tail(SEND_FALSE_MW_ALARM_FLAG);
          }
@@ -1224,12 +1226,18 @@ void beep_twice(unsigned char *beeper_counter, unsigned char activate_beeper, un
    }
 }
 
-void check_connection_status_and_server_availability(unsigned short *counter) {
-   if (*counter == 0 && is_piped_tasks_scheduler_empty()) {
-      *counter = TIMER14_30S;
-      add_piped_task_to_send_into_tail(GET_VISIBLE_NETWORK_LIST_FLAG);
+void check_connection_status_and_server_availability() {
+   if (checking_connection_status_and_server_availability_timer_g == 0 && is_piped_tasks_scheduler_empty()) {
+      checking_connection_status_and_server_availability_timer_g = TIMER14_30S;
       add_piped_task_to_send_into_tail(GET_CONNECTION_STATUS_FLAG);
       add_piped_task_to_send_into_tail(GET_SERVER_AVAILABILITY_FLAG);
+   }
+}
+
+void check_visible_network_list() {
+   if (!visible_network_list_timer_g && is_piped_tasks_scheduler_empty()) {
+      visible_network_list_timer_g = TIMER14_10MIN;
+      add_piped_task_to_send_into_tail(GET_VISIBLE_NETWORK_LIST_FLAG);
    }
 }
 
