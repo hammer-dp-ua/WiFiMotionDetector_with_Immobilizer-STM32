@@ -62,10 +62,11 @@
 #define BEEPER_ACTIVATED_SERVER_RECEIVED_AFTER_PAUSE_FLAG 128
 #define SEND_DEBUG_INFO_FLAG 256
 #define IMMOBILIZER_RELAY_FLAG 512
-#define IMMOBILIZER_REACTED_FLAG 1024
+#define IMMOBILIZER_ANTI_JITTER_FLAG 1024
 #define IMMOBILIZER_ACTIVATED_SERVER_RECEIVED_FLAG 2048
 #define PIR_ACTIVATED_FLAG 4096
 #define MW_ACTIVATED_FLAG 8192
+#define LAST_SENT_IMMOBILIZER_ACTION_WAS_ACTIVATION_FLAG 16384
 
 #define GET_VISIBLE_NETWORK_LIST_FLAG 1
 #define DISABLE_ECHO_FLAG 2
@@ -216,6 +217,7 @@ volatile unsigned short false_pir_alarm_timer_g;
 volatile unsigned short false_mw_alarm_timer_g;
 volatile unsigned short immobilizer_activation_led_signalization_timer_g;
 volatile unsigned short immobilizer_activation_led_signalization_period_timer_g;
+volatile unsigned short immobilizer_anti_jitter_timer_g;
 
 volatile unsigned short usart_overrun_errors_counter_g;
 volatile unsigned short usart_idle_line_detection_counter_g;
@@ -297,6 +299,9 @@ void enable_esp8266();
 void disable_esp8266();
 void disable_immobilizer();
 void enable_immobilizer();
+void start_immobilizer_anti_jitter_timer();
+unsigned char is_immobilizer_status_ready_to_be_read();
+void reset_immobilizer_status();
 unsigned char is_immobilizer_enabled();
 unsigned char is_esp8266_enabled(unsigned char include_timer);
 void clear_piped_request_commands_to_send();
@@ -372,6 +377,9 @@ void TIM14_IRQHandler() {
    if (immobilizer_activation_led_signalization_timer_g) {
       immobilizer_activation_led_signalization_timer_g--;
    }
+   if (immobilizer_anti_jitter_timer_g) {
+      immobilizer_anti_jitter_timer_g--;
+   }
 }
 
 void TIM3_IRQHandler() {
@@ -411,7 +419,7 @@ void EXTI0_1_IRQHandler() {
 void EXTI4_15_IRQHandler() {
    if (EXTI_GetITStatus(IMMOBILIZER_LED_OUT_EXTI_LINE)) {
       EXTI_ClearITPendingBit(IMMOBILIZER_LED_OUT_EXTI_LINE);
-      set_flag(&general_flags_g, IMMOBILIZER_REACTED_FLAG);
+      start_immobilizer_anti_jitter_timer();
    } else if (EXTI_GetITStatus(PIR_LED_OUT_EXTI_LINE)) {
       EXTI_ClearITPendingBit(PIR_LED_OUT_EXTI_LINE);
       if (!GPIO_ReadInputDataBit(PIR_LED_OUT_PORT, PIR_LED_OUT_PIN)) {
@@ -631,15 +639,17 @@ int main() {
          }
 
          unsigned char activate_beeper = 0;
-         if (read_flag(&general_flags_g, IMMOBILIZER_REACTED_FLAG)) {
-            if (!GPIO_ReadInputDataBit(IMMOBILIZER_LED_OUT_PORT, IMMOBILIZER_LED_OUT_PIN)) {
+         if (is_immobilizer_status_ready_to_be_read()) {
+            if (!GPIO_ReadInputDataBit(IMMOBILIZER_LED_OUT_PORT, IMMOBILIZER_LED_OUT_PIN) && !read_flag(&general_flags_g, LAST_SENT_IMMOBILIZER_ACTION_WAS_ACTIVATION_FLAG)) {
                add_piped_task_to_send_into_tail(SEND_IMMOBILIZER_ACTIVATED_FLAG);
                activate_beeper = 1;
                immobilizer_activation_led_signalization_timer_g = TIMER14_60S;
-            } else {
+               set_flag(&general_flags_g, LAST_SENT_IMMOBILIZER_ACTION_WAS_ACTIVATION_FLAG);
+            } else if (GPIO_ReadInputDataBit(IMMOBILIZER_LED_OUT_PORT, IMMOBILIZER_LED_OUT_PIN) && read_flag(&general_flags_g, LAST_SENT_IMMOBILIZER_ACTION_WAS_ACTIVATION_FLAG)) {
                add_piped_task_to_send_into_tail(SEND_IMMOBILIZER_DEACTIVATED_FLAG);
+               reset_flag(&general_flags_g, LAST_SENT_IMMOBILIZER_ACTION_WAS_ACTIVATION_FLAG);
             }
-            reset_flag(&general_flags_g, IMMOBILIZER_REACTED_FLAG);
+            reset_immobilizer_status();
          }
 
          if (read_flag(&general_flags_g, ALARM_FLAG) && is_piped_tasks_scheduler_empty()) {
@@ -2227,6 +2237,19 @@ void disable_immobilizer() {
 
 void enable_immobilizer() {
    GPIO_WriteBit(IMMOBILIZER_ENABLE_PORT, IMMOBILIZER_ENABLE_PIN, Bit_SET);
+}
+
+void start_immobilizer_anti_jitter_timer() {
+   immobilizer_anti_jitter_timer_g = TIMER14_3S;
+   set_flag(&general_flags_g, IMMOBILIZER_ANTI_JITTER_FLAG);
+}
+
+unsigned char is_immobilizer_status_ready_to_be_read() {
+   return read_flag(&general_flags_g, IMMOBILIZER_ANTI_JITTER_FLAG) && !immobilizer_anti_jitter_timer_g;
+}
+
+void reset_immobilizer_status() {
+   reset_flag(&general_flags_g, IMMOBILIZER_ANTI_JITTER_FLAG);
 }
 
 unsigned char is_immobilizer_enabled() {
