@@ -1674,7 +1674,7 @@ void *get_received_usart_error_data() {
       }
       *(result_string + i) = received_char;
    }
-   *(result_string + received_data_length + 1) = '\0';
+   *(result_string + received_data_length) = '\0';
    return result_string;
 }
 
